@@ -32,7 +32,11 @@ type PfmAccount = {
  * konta po stronie Post for Me (`spc_...`).
  */
 const PLATFORMS = [
-  { value: 'tiktok', label: 'TikTok' },
+  // TikTok Business idzie przez business-api.tiktok.com, gdzie nie obowiazuje
+  // limit aktywnych uzytkownikow aplikacji, ktory blokuje zwykle konto tiktok
+  // (403 reached_active_user_cap). Do publikacji uzywamy Business.
+  { value: 'tiktok_business', label: 'TikTok (Business)' },
+  { value: 'tiktok', label: 'TikTok (osobiste - limit apki, moze nie dzialac)' },
   { value: 'instagram', label: 'Instagram' },
   { value: 'facebook', label: 'Facebook' },
   { value: 'youtube', label: 'YouTube' },
@@ -157,6 +161,24 @@ export class PostForMeProvider
 
     const media = (first.media || []).map((m) => ({ url: m.path }));
 
+    // TikTok odrzuca publikacje bez privacy_level, ale Post for Me przyjmuje
+    // takie zadanie i konczy je statusem "processed" bez sladu bledu.
+    // Platforme czytamy z API, bo konfiguracja kanalu jest zaszyfrowana,
+    // a klucz w platform_configurations musi doslownie odpowiadac platformie
+    // ("tiktok" vs "tiktok_business" to dwa rozne API po stronie TikToka).
+    let platform = '';
+    try {
+      const account = await (
+        await this.fetch(`${API}/social-accounts/${id}`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        })
+      ).json();
+      platform = String(account?.platform || '');
+    } catch {
+      // brak informacji o platformie nie moze blokowac publikacji
+    }
+    const tiktokLike = platform.startsWith('tiktok');
+
     const { data, id: postId } = await (
       await this.fetch(`${API}/social-posts`, {
         method: 'POST',
@@ -168,6 +190,13 @@ export class PostForMeProvider
           caption: first.message,
           social_accounts: [id],
           ...(media.length ? { media } : {}),
+          ...(tiktokLike
+            ? {
+                platform_configurations: {
+                  [platform]: { privacy_level: 'PUBLIC_TO_EVERYONE' },
+                },
+              }
+            : {}),
         }),
       })
     ).json();
