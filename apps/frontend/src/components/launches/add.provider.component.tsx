@@ -4,6 +4,7 @@ import { useModals } from '@gitroom/frontend/components/layout/new-modal';
 import React, { FC, useCallback, useMemo } from 'react';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { Input } from '@gitroom/react/form/input';
+import { Select } from '@gitroom/react/form/select';
 import { FieldValues, FormProvider, useForm } from 'react-hook-form';
 import { Button } from '@gitroom/react/form/button';
 import { classValidatorResolver } from '@hookform/resolvers/class-validator';
@@ -164,8 +165,9 @@ export const CustomVariables: FC<{
     label: string;
     defaultValue?: string;
     validation: string;
-    type: 'text' | 'password';
+    type: 'text' | 'password' | 'select';
     hint?: string;
+    options?: Array<{ value: string; label: string }>;
   }>;
   close?: () => void;
   identifier: string;
@@ -237,7 +239,15 @@ export const CustomVariables: FC<{
         >
           {variables.map((variable) => (
             <div key={variable.key}>
-              {variable.hint ? (
+              {variable.type === 'select' ? (
+                <Select label={variable.label} name={variable.key}>
+                  {(variable.options || []).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </Select>
+              ) : variable.hint ? (
                 <div className="flex flex-col gap-[6px]">
                   <div className="text-[14px] flex items-center gap-[6px]">
                     <span>{variable.label}</span>

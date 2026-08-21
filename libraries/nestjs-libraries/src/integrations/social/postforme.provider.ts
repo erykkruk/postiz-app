@@ -31,14 +31,24 @@ type PfmAccount = {
  * Token integracji w Postizie to `apiKey`, a `internalId` to identyfikator
  * konta po stronie Post for Me (`spc_...`).
  */
-export abstract class PostForMeProvider
+const PLATFORMS = [
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'x', label: 'X (Twitter)' },
+  { value: 'linkedin', label: 'LinkedIn' },
+  { value: 'pinterest', label: 'Pinterest' },
+  { value: 'threads', label: 'Threads' },
+  { value: 'bluesky', label: 'Bluesky' },
+];
+
+export class PostForMeProvider
   extends SocialAbstract
   implements SocialProvider
 {
-  /** Nazwa platformy w Post for Me, np. "tiktok", "instagram". */
-  abstract platform: string;
-  abstract identifier: string;
-  abstract name: string;
+  identifier = 'postforme';
+  name = 'Post for Me';
 
   isBetweenSteps = false;
   editor = 'normal' as const;
@@ -76,6 +86,13 @@ export abstract class PostForMeProvider
         type: 'password' as const,
       },
       {
+        key: 'platform',
+        label: 'Platforma',
+        validation: `/^.{2,}$/`,
+        type: 'select' as const,
+        options: PLATFORMS,
+      },
+      {
         key: 'accountId',
         label: 'ID konta (spc_...) - zostaw puste, aby wziac pierwsze konto tej platformy',
         validation: `/^(|spc_.{5,})$/`,
@@ -96,24 +113,32 @@ export abstract class PostForMeProvider
   async authenticate(params: { code: string }) {
     const body = JSON.parse(Buffer.from(params.code, 'base64').toString());
     const apiKey: string = body.apiKey;
+    const platform: string = (body.platform || '').trim();
     const wanted: string = (body.accountId || '').trim();
 
     const all = await this.accounts(apiKey);
-    const forPlatform = all.filter((a) => a.platform === this.platform);
+    const forPlatform = all.filter((a) => a.platform === platform);
 
     const account = wanted
       ? forPlatform.find((a) => a.id === wanted)
       : forPlatform[0];
 
     if (!account) {
+      // Wypisujemy, co faktycznie jest polaczone - inaczej user zgaduje,
+      // czy pomylil platforme, czy nie polaczyl konta w panelu PFM.
+      const available = all
+        .map((a) => `${a.platform}:${a.username || a.id}`)
+        .join(', ');
       throw new Error(
-        `Post for Me: brak polaczonego konta ${this.platform}. Polacz je najpierw w panelu postforme.dev.`
+        `Post for Me: brak konta dla platformy "${platform}". ` +
+          `Polaczone konta: ${available || 'brak'}. ` +
+          'Polacz konto w panelu postforme.dev albo wybierz inna platforme.'
       );
     }
 
     return {
       id: account.id,
-      name: account.username || account.external_id || this.platform,
+      name: `${account.username || account.external_id || platform} (PFM)`,
       accessToken: apiKey,
       refreshToken: apiKey,
       expiresIn: TOKEN_TTL_SECONDS,
@@ -168,56 +193,3 @@ export abstract class PostForMeProvider
   }
 }
 
-export class TikTokPfmProvider extends PostForMeProvider {
-  platform = 'tiktok';
-  identifier = 'tiktok-pfm';
-  name = 'TikTok (PFM)';
-}
-
-export class InstagramPfmProvider extends PostForMeProvider {
-  platform = 'instagram';
-  identifier = 'instagram-pfm';
-  name = 'Instagram (PFM)';
-}
-
-export class FacebookPfmProvider extends PostForMeProvider {
-  platform = 'facebook';
-  identifier = 'facebook-pfm';
-  name = 'Facebook (PFM)';
-}
-
-export class YoutubePfmProvider extends PostForMeProvider {
-  platform = 'youtube';
-  identifier = 'youtube-pfm';
-  name = 'YouTube (PFM)';
-}
-
-export class XPfmProvider extends PostForMeProvider {
-  platform = 'x';
-  identifier = 'x-pfm';
-  name = 'X (PFM)';
-}
-
-export class LinkedinPfmProvider extends PostForMeProvider {
-  platform = 'linkedin';
-  identifier = 'linkedin-pfm';
-  name = 'LinkedIn (PFM)';
-}
-
-export class PinterestPfmProvider extends PostForMeProvider {
-  platform = 'pinterest';
-  identifier = 'pinterest-pfm';
-  name = 'Pinterest (PFM)';
-}
-
-export class ThreadsPfmProvider extends PostForMeProvider {
-  platform = 'threads';
-  identifier = 'threads-pfm';
-  name = 'Threads (PFM)';
-}
-
-export class BlueskyPfmProvider extends PostForMeProvider {
-  platform = 'bluesky';
-  identifier = 'bluesky-pfm';
-  name = 'Bluesky (PFM)';
-}
