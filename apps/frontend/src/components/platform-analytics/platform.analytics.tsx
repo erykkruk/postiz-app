@@ -1,13 +1,14 @@
 'use client';
 
 import useSWR from 'swr';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { capitalize, orderBy } from 'lodash';
 import clsx from 'clsx';
 import ImageWithFallback from '@gitroom/react/helpers/image.with.fallback';
 import Image from 'next/image';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { RenderAnalytics } from '@gitroom/frontend/components/platform-analytics/render.analytics';
+import { GeneralAnalytics } from '@gitroom/frontend/components/platform-analytics/general.analytics';
 import { Select } from '@gitroom/react/form/select';
 import { Button } from '@gitroom/react/form/button';
 import { useRouter } from 'next/navigation';
@@ -36,6 +37,10 @@ export const PlatformAnalytics = () => {
   const { disableXAnalytics } = useVariables();
 
   const [current, setCurrent] = useState(0);
+  // 'general' laczy dane ze wszystkich zaznaczonych kanalow, 'single' to
+  // dotychczasowy widok jednego kanalu.
+  const [view, setView] = useState<'single' | 'general'>('single');
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const [key, setKey] = useState(7);
   const [refresh, setRefresh] = useState(false);
   const [collapseMenu, setCollapseMenu] = useCookie('collapseMenu', '0');
@@ -70,6 +75,21 @@ export const PlatformAnalytics = () => {
   const currentIntegration = useMemo(() => {
     return sortedIntegrations[current];
   }, [current, sortedIntegrations]);
+  useEffect(() => {
+    setPicked(new Set(sortedIntegrations.map((i: any) => i.id)));
+  }, [sortedIntegrations.length]);
+  const pickedIntegrations = useMemo(
+    () => sortedIntegrations.filter((i: any) => picked.has(i.id)),
+    [sortedIntegrations, picked]
+  );
+  const generalOptions = useMemo(
+    () => [
+      { key: 7, value: t('7_days', '7 Days') },
+      { key: 30, value: t('30_days', '30 Days') },
+      { key: 90, value: t('90_days', '90 Days') },
+    ],
+    [t]
+  );
   const options = useMemo(() => {
     if (!currentIntegration) {
       return [];
@@ -181,6 +201,20 @@ export const PlatformAnalytics = () => {
             <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
               {t('channels')}
             </h2>
+            {view === 'general' && (
+              <button
+                className="group-[.sidebar]:hidden text-[11px] text-customColor21 me-[8px]"
+                onClick={() =>
+                  setPicked(
+                    picked.size === sortedIntegrations.length
+                      ? new Set()
+                      : new Set(sortedIntegrations.map((i: any) => i.id))
+                  )
+                }
+              >
+                {picked.size === sortedIntegrations.length ? 'none' : 'all'}
+              </button>
+            )}
             <div
               onClick={() => setCollapseMenu(collapseMenu === '1' ? '0' : '1')}
               className="group-[.sidebar]:rotate-[180deg] group-[.sidebar]:mx-auto text-btnText bg-btnSimple rounded-[6px] w-[24px] h-[24px] flex items-center justify-center cursor-pointer select-none"
@@ -213,6 +247,16 @@ export const PlatformAnalytics = () => {
                   );
                   return;
                 }
+                if (view === 'general') {
+                  setPicked((prev) => {
+                    const next = new Set(prev);
+                    next.has(integration.id)
+                      ? next.delete(integration.id)
+                      : next.add(integration.id);
+                    return next;
+                  });
+                  return;
+                }
                 setRefresh(true);
                 setTimeout(() => {
                   setRefresh(false);
@@ -220,9 +264,12 @@ export const PlatformAnalytics = () => {
                 setCurrent(index);
               }}
               className={clsx(
-                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px]',
-                currentIntegration.id !== integration.id &&
-                  'opacity-20 hover:opacity-100 cursor-pointer'
+                'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px] cursor-pointer',
+                view === 'general'
+                  ? !picked.has(integration.id) &&
+                      'opacity-20 hover:opacity-100'
+                  : currentIntegration.id !== integration.id &&
+                      'opacity-20 hover:opacity-100'
               )}
             >
               <div
@@ -271,17 +318,41 @@ export const PlatformAnalytics = () => {
         </div>
       </div>
       <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
-        {!!options.length && (
+        <div className="flex items-center gap-[8px]">
+          {(['single', 'general'] as const).map((item) => (
+            <button
+              key={item}
+              onClick={() => setView(item)}
+              className={clsx(
+                'text-[13px] px-[14px] py-[6px] rounded-[8px]',
+                view === item ? 'bg-customColor21' : 'bg-newTableHeader'
+              )}
+            >
+              {item === 'single'
+                ? t('per_channel', 'Per channel')
+                : t('general', 'General')}
+            </button>
+          ))}
+          {view === 'general' && (
+            <span className="text-[12px] text-[#8B8B8B]">
+              {pickedIntegrations.length} / {sortedIntegrations.length}{' '}
+              {t('channels_selected', 'channels selected')}
+            </span>
+          )}
+        </div>
+
+        {view === 'general' ? (
           <div className="flex-1 flex flex-col gap-[14px]">
             <div className="max-w-[200px]">
               <Select
                 label=""
-                name="date"
+                name="general-date"
                 disableForm={true}
                 hideErrors={true}
+                value={key}
                 onChange={(e) => setKey(+e.target.value)}
               >
-                {options.map((option) => (
+                {generalOptions.map((option) => (
                   <option key={option.key} value={option.key}>
                     {option.value}
                   </option>
@@ -289,11 +360,40 @@ export const PlatformAnalytics = () => {
               </Select>
             </div>
             <div className="flex-1">
-              {!!keys && !!currentIntegration && !refresh && (
-                <RenderAnalytics integration={currentIntegration} date={keys} />
-              )}
+              <GeneralAnalytics
+                integrations={pickedIntegrations as any}
+                date={key}
+              />
             </div>
           </div>
+        ) : (
+          !!options.length && (
+            <div className="flex-1 flex flex-col gap-[14px]">
+              <div className="max-w-[200px]">
+                <Select
+                  label=""
+                  name="date"
+                  disableForm={true}
+                  hideErrors={true}
+                  onChange={(e) => setKey(+e.target.value)}
+                >
+                  {options.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.value}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="flex-1">
+                {!!keys && !!currentIntegration && !refresh && (
+                  <RenderAnalytics
+                    integration={currentIntegration}
+                    date={keys}
+                  />
+                )}
+              </div>
+            </div>
+          )
         )}
       </div>
     </>
