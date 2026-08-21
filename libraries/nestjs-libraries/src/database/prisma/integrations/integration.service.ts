@@ -401,6 +401,20 @@ export class IntegrationService {
       });
   }
 
+  /** Czytelny opis bledu. Providery rzucaja rozne ksztalty: Error, obiekt
+   *  Graph API, czasem goly string - bez tego w UI ladowalo "[object Object]". */
+  private describeError(err: any): string {
+    if (!err) return 'Nieznany blad';
+    if (typeof err === 'string') return err.slice(0, 200);
+    const direct = err.message || err.error?.message || err.body?.error?.message;
+    if (typeof direct === 'string' && direct) return direct.slice(0, 200);
+    try {
+      return JSON.stringify(err).slice(0, 200);
+    } catch {
+      return 'Nieznany blad';
+    }
+  }
+
   /**
    * Wynik z cache'u, jesli jest swiezy.
    *
@@ -500,7 +514,7 @@ export class IntegrationService {
       await this.writeInboxCache(org.id, id, 'comments', result);
       return result;
     } catch (err: any) {
-      return { error: String(err?.message || err).slice(0, 200), comments: [] };
+      return { error: this.describeError(err), comments: [] };
     }
   }
 
@@ -539,7 +553,7 @@ export class IntegrationService {
       return result;
     } catch (err: any) {
       return {
-        error: String(err?.message || err).slice(0, 200),
+        error: this.describeError(err),
         conversations: [],
       };
     }
@@ -617,7 +631,7 @@ export class IntegrationService {
         } catch (err: any) {
           return {
             ...base,
-            error: String(err?.message || err).slice(0, 200),
+            error: this.describeError(err),
             comments: [],
           };
         }
@@ -693,7 +707,7 @@ export class IntegrationService {
         } catch (err: any) {
           return {
             ...base,
-            error: String(err?.message || err).slice(0, 200),
+            error: this.describeError(err),
             conversations: [],
           };
         }
