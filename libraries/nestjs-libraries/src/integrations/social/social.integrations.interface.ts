@@ -225,7 +225,9 @@ export interface SocialProvider
       label: string;
       defaultValue?: string;
       validation: string;
-      type: 'text' | 'password';
+      // 'select' renderuje liste wyboru i wymaga podania `options`.
+      type: 'text' | 'password' | 'select';
+      options?: { value: string; label: string }[];
     }[]
   >;
   name: string;

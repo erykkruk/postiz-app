@@ -6,17 +6,7 @@ import { SocialProvider } from '@gitroom/nestjs-libraries/integrations/social/so
 import { LinkedinProvider } from '@gitroom/nestjs-libraries/integrations/social/linkedin.provider';
 import { RedditProvider } from '@gitroom/nestjs-libraries/integrations/social/reddit.provider';
 import { DevToProvider } from '@gitroom/nestjs-libraries/integrations/social/dev.to.provider';
-import {
-  BlueskyPfmProvider,
-  FacebookPfmProvider,
-  InstagramPfmProvider,
-  LinkedinPfmProvider,
-  PinterestPfmProvider,
-  ThreadsPfmProvider,
-  TikTokPfmProvider,
-  XPfmProvider,
-  YoutubePfmProvider,
-} from '@gitroom/nestjs-libraries/integrations/social/postforme.provider';
+import { PostForMeProvider } from '@gitroom/nestjs-libraries/integrations/social/postforme.provider';
 import { HashnodeProvider } from '@gitroom/nestjs-libraries/integrations/social/hashnode.provider';
 import { MediumProvider } from '@gitroom/nestjs-libraries/integrations/social/medium.provider';
 import { FacebookProvider } from '@gitroom/nestjs-libraries/integrations/social/facebook.provider';
@@ -45,15 +35,8 @@ export const socialIntegrationList: SocialProvider[] = [
   new XProvider(),
   // Post for Me - publikacja przez postforme.dev zamiast wlasnej aplikacji
   // deweloperskiej platformy (TikTok czeka u nas na weryfikacje Business Center).
-  new TikTokPfmProvider(),
-  new InstagramPfmProvider(),
-  new FacebookPfmProvider(),
-  new YoutubePfmProvider(),
-  new XPfmProvider(),
-  new LinkedinPfmProvider(),
-  new PinterestPfmProvider(),
-  new ThreadsPfmProvider(),
-  new BlueskyPfmProvider(),
+  // Jeden kanal, platforme wybiera sie przy podlaczeniu.
+  new PostForMeProvider(),
   new LinkedinProvider(),
   new LinkedinPageProvider(),
   new RedditProvider(),
