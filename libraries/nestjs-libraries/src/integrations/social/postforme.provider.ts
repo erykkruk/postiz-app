@@ -167,6 +167,7 @@ export class PostForMeProvider
     // a klucz w platform_configurations musi doslownie odpowiadac platformie
     // ("tiktok" vs "tiktok_business" to dwa rozne API po stronie TikToka).
     let platform = '';
+    let username = '';
     try {
       const account = await (
         await this.fetch(`${API}/social-accounts/${id}`, {
@@ -174,6 +175,7 @@ export class PostForMeProvider
         })
       ).json();
       platform = String(account?.platform || '');
+      username = String(account?.username || '');
     } catch {
       // brak informacji o platformie nie moze blokowac publikacji
     }
@@ -203,11 +205,23 @@ export class PostForMeProvider
 
     const created = data || { id: postId };
 
+    // Post for Me nie zna adresu posta w chwili przyjecia zlecenia (publikuje
+    // asynchronicznie), a Postiz traktuje pusty releaseURL jako blad i oznacza
+    // udana publikacje jako ERROR. Podajemy wiec adres profilu - prowadzi do
+    // wlasciwego miejsca, a status w kalendarzu zgadza sie z rzeczywistoscia.
+    const profileUrl =
+      created.platform_url ||
+      (username && platform.startsWith('tiktok')
+        ? `https://www.tiktok.com/@${username}`
+        : username
+        ? `https://${platform}.com/${username}`
+        : `${API}/social-posts/${created.id || ''}`);
+
     return [
       {
         id: first.id,
         postId: String(created.id || ''),
-        releaseURL: created.platform_url || '',
+        releaseURL: profileUrl,
         status: 'success',
       },
       // Watki nie sa wspierane przez Post for Me - kazda kolejna czesc
