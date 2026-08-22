@@ -44,7 +44,7 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     'pages_manage_engagement',
     'pages_read_engagement',
     'read_insights',
-    // Wiadomosci: wymaga ponownego zalogowania kanalu, zeby token je poniosl.
+    // Messaging: the channel has to be reconnected so the token carries it.
     'pages_messaging',
   ];
   override maxConcurrentJob = 500; // Facebook has reasonable rate limits
@@ -1093,8 +1093,8 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
       )
     ).json();
 
-    // Posty odpytujemy rownolegle - sekwencyjnie kazdy kanal trwal tyle, ile
-    // suma jego postow, i zakladka Inbox wisiala na wczytywaniu.
+    // Posts are queried in parallel - sequentially, each channel took as long as
+    // the sum of its posts and the Inbox tab sat there loading.
     const perPost = await Promise.all(
       (data || []).map(async (post: any) => {
         const comments = await this.comments(id, post.id, accessToken, options);
@@ -1110,8 +1110,8 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     return perPost.flat();
   }
 
-  // Prywatne rozmowy ze strony. Wymaga uprawnienia pages_messaging - bez niego
-  // Graph zwraca (#200) i UI pokazuje prosbe o ponowne zalogowanie kanalu.
+  // Private conversations of the page. Requires the pages_messaging permission -
+  // without it Graph returns (#200) and the UI asks to reconnect the channel.
   async conversations(
     id: string,
     accessToken: string,
@@ -1146,9 +1146,9 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
         }))
         .reverse();
 
-      // Meta pozwala odpisac swobodnie tylko w ciagu 24h od ostatniej wiadomosci
-      // rozmowcy. Poza tym oknem trzeba uzyc oznaczonych typow wiadomosci,
-      // dlatego UI nie moze wtedy pokazywac zwyklego pola odpowiedzi.
+      // Meta only allows a free-form reply within 24h of the other person's last
+      // message. Outside that window you have to use tagged message types, which
+      // is why the UI cannot show a plain reply box then.
       const lastFromThem = [...messages].reverse().find((m) => !m.isFromUs);
       const canReplyFreely = !!lastFromThem &&
         dayjs().diff(dayjs(lastFromThem.createdAt), 'hour') < 24;
