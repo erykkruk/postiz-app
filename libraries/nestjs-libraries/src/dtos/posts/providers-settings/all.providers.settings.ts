@@ -75,10 +75,10 @@ export const allProviders = (setEmpty?: any) => {
     { value: FarcasterDto, name: 'wrapcast' },
     { value: FacebookDto, name: 'facebook' },
     { value: setEmpty, name: 'threads' },
-    // Post for Me nie ma wlasnych ustawien per post: platforma i konto sa
-    // przypisane do kanalu, a wymagane pola (np. privacy_level TikToka)
-    // dokleja provider. Bez tego wpisu walidacja odrzuca kazdy post na ten
-    // kanal komunikatem, ze typ nie jest dozwolony.
+    // Post for Me has no per-post settings of its own: the platform and account
+    // belong to the channel and the provider fills in the required fields (such
+    // as TikTok's privacy_level). Without this entry, validation rejects every
+    // post to that channel with a "type not allowed" message.
     { value: setEmpty, name: 'postforme' },
     { value: setEmpty, name: 'mastodon' },
     { value: setEmpty, name: 'bluesky' },

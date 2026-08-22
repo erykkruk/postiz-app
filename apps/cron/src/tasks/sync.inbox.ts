@@ -4,9 +4,9 @@ import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/in
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 
 /**
- * Co godzine dociaga komentarze i rozmowy ze wszystkich kanalow do lokalnej
- * bazy. Dzieki temu panel otwiera sie natychmiast, bo czyta gotowe dane,
- * zamiast czekac na odpowiedzi platform przy kazdym wejsciu.
+ * Pulls comments and conversations from every channel into the local database
+ * once an hour, so the panel opens instantly on ready rows instead of waiting
+ * for the platforms on every visit.
  */
 @Injectable()
 export class SyncInbox {
@@ -21,8 +21,8 @@ export class SyncInbox {
       select: { id: true },
     });
 
-    // Organizacje po kolei, kanaly wewnatrz organizacji rownolegle - inaczej
-    // przy wielu kontach poszlaby lawina wywolan do Meta naraz.
+    // Organizations one at a time, channels inside an organization in parallel -
+    // otherwise many accounts would fire an avalanche of Meta calls at once.
     for (const org of organizations) {
       await this._integrationService.syncOrganization(org.id, 'comment');
       await this._integrationService.syncOrganization(org.id, 'conversation');

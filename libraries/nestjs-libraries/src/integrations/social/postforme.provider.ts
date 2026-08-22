@@ -10,7 +10,7 @@ import { makeId } from '@gitroom/nestjs-libraries/services/make.is';
 
 const API = 'https://api.postforme.dev/v1';
 
-// Klucz projektu Post for Me nie wygasa, ale interfejs wymaga liczby sekund.
+// The Post for Me project key never expires, but the interface wants a number of seconds.
 const TOKEN_TTL_SECONDS = 60 * 60 * 24 * 365;
 
 type PfmAccount = {
@@ -23,20 +23,20 @@ type PfmAccount = {
 };
 
 /**
- * Publikacja przez Post for Me (postforme.dev) zamiast bezposrednio przez API
- * platformy. Sensowne tam, gdzie wlasna aplikacja deweloperska jest
- * niedostepna albo czeka na weryfikacje - Post for Me trzyma OAuth u siebie,
- * my podajemy tylko klucz projektu.
+ * Publishes through Post for Me (postforme.dev) instead of calling the platform
+ * API directly. Useful wherever your own developer app is unavailable or stuck
+ * in review - Post for Me keeps the OAuth on its side and we only supply a
+ * project key.
  *
- * Token integracji w Postizie to `apiKey`, a `internalId` to identyfikator
- * konta po stronie Post for Me (`spc_...`).
+ * The Postiz integration token is the `apiKey`, and `internalId` is the account
+ * identifier on the Post for Me side (`spc_...`).
  */
 const PLATFORMS = [
-  // TikTok Business idzie przez business-api.tiktok.com, gdzie nie obowiazuje
-  // limit aktywnych uzytkownikow aplikacji, ktory blokuje zwykle konto tiktok
-  // (403 reached_active_user_cap). Do publikacji uzywamy Business.
+  // TikTok Business goes through business-api.tiktok.com, which is not subject
+  // to the active-user cap that blocks a plain tiktok account
+  // (403 reached_active_user_cap). Business is the one we publish with.
   { value: 'tiktok_business', label: 'TikTok (Business)' },
-  { value: 'tiktok', label: 'TikTok (osobiste - limit apki, moze nie dzialac)' },
+  { value: 'tiktok', label: 'TikTok (personal - app cap applies, may not work)' },
   { value: 'instagram', label: 'Instagram' },
   { value: 'facebook', label: 'Facebook' },
   { value: 'youtube', label: 'YouTube' },
@@ -68,8 +68,8 @@ export class PostForMeProvider
   }
 
   async refreshToken(): Promise<AuthTokenDetails> {
-    // Post for Me odswieza tokeny platform po swojej stronie, my trzymamy
-    // tylko klucz projektu, ktory nie wygasa.
+    // Post for Me refreshes the platform tokens on its side; we only hold the
+    // project key, which does not expire.
     return {
       refreshToken: '',
       expiresIn: 0,
@@ -85,13 +85,13 @@ export class PostForMeProvider
     return [
       {
         key: 'apiKey',
-        label: 'Post for Me - klucz projektu (pfm_live_...)',
+        label: 'Post for Me project key (pfm_live_...)',
         validation: `/^pfm_.{10,}$/`,
         type: 'password' as const,
       },
       {
         key: 'platform',
-        label: 'Platforma',
+        label: 'Platform',
         validation: `/^.{2,}$/`,
         type: 'select' as const,
         options: PLATFORMS,
@@ -128,8 +128,8 @@ export class PostForMeProvider
       : forPlatform[0];
 
     if (!account) {
-      // Wypisujemy, co faktycznie jest polaczone - inaczej user zgaduje,
-      // czy pomylil platforme, czy nie polaczyl konta w panelu PFM.
+      // List what is actually connected - otherwise the user has to guess
+      // whether they picked the wrong platform or never linked the account in PFM.
       const available = all
         .map((a) => `${a.platform}:${a.username || a.id}`)
         .join(', ');
@@ -162,10 +162,10 @@ export class PostForMeProvider
     const media = (first.media || []).map((m) => ({ url: m.path }));
 
     // TikTok odrzuca publikacje bez privacy_level, ale Post for Me przyjmuje
-    // takie zadanie i konczy je statusem "processed" bez sladu bledu.
-    // Platforme czytamy z API, bo konfiguracja kanalu jest zaszyfrowana,
-    // a klucz w platform_configurations musi doslownie odpowiadac platformie
-    // ("tiktok" vs "tiktok_business" to dwa rozne API po stronie TikToka).
+    // such a job and finishes it as "processed" with no trace of an error.
+    // The platform is read from the API because the channel configuration is
+    // encrypted, and the key in platform_configurations has to match the platform
+    // literally ("tiktok" and "tiktok_business" are two different TikTok APIs).
     let platform = '';
     let username = '';
     try {
@@ -177,7 +177,7 @@ export class PostForMeProvider
       platform = String(account?.platform || '');
       username = String(account?.username || '');
     } catch {
-      // brak informacji o platformie nie moze blokowac publikacji
+      // a missing platform lookup must not block publishing
     }
     const tiktokLike = platform.startsWith('tiktok');
 
@@ -205,10 +205,10 @@ export class PostForMeProvider
 
     const created = data || { id: postId };
 
-    // Post for Me nie zna adresu posta w chwili przyjecia zlecenia (publikuje
+    // Post for Me does not know the post URL when it accepts the job (it publishes
     // asynchronicznie), a Postiz traktuje pusty releaseURL jako blad i oznacza
-    // udana publikacje jako ERROR. Podajemy wiec adres profilu - prowadzi do
-    // wlasciwego miejsca, a status w kalendarzu zgadza sie z rzeczywistoscia.
+    // a successful publish as ERROR. We return the profile URL instead - it leads
+    // somewhere sensible and the calendar status matches reality.
     const profileUrl =
       created.platform_url ||
       (username && platform.startsWith('tiktok')
@@ -224,8 +224,8 @@ export class PostForMeProvider
         releaseURL: profileUrl,
         status: 'success',
       },
-      // Watki nie sa wspierane przez Post for Me - kazda kolejna czesc
-      // musialaby byc osobnym postem, wiec je pomijamy zamiast cicho gubic.
+      // Post for Me does not support threads - every follow-up part would have to
+      // be its own post, so we skip them instead of dropping them silently.
       ...rest.map((r) => ({
         id: r.id,
         postId: '',

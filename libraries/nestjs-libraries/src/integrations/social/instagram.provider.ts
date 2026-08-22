@@ -37,8 +37,8 @@ export class InstagramProvider
     'instagram_content_publish',
     'instagram_manage_comments',
     'instagram_manage_insights',
-    // Wiadomosci: dodatkowo wymaga zdolnosci po stronie aplikacji Meta
-    // (App Review), samo uprawnienie w tokenie nie wystarczy.
+    // Messaging: also needs the capability on the Meta app side (App Review);
+    // having the permission in the token is not enough.
     'instagram_business_manage_messages',
   ];
   override maxConcurrentJob = 10;
@@ -751,7 +751,7 @@ export class InstagramProvider
     };
   }
 
-  // Instagram uzywa pola `hide`, nie `is_hidden` jak Facebook.
+  // Instagram uses the `hide` field, not `is_hidden` like Facebook.
   async hideComment(
     commentId: string,
     hidden: boolean,
@@ -794,8 +794,8 @@ export class InstagramProvider
       )
     ).json();
 
-    // Posty odpytujemy rownolegle - sekwencyjnie kazdy kanal trwal tyle, ile
-    // suma jego postow, i zakladka Inbox wisiala na wczytywaniu.
+    // Posts are queried in parallel - sequentially, each channel took as long as
+    // the sum of its posts and the Inbox tab sat there loading.
     const perPost = await Promise.all(
       (data || []).map(async (media: any) => {
         const comments = await this.comments(id, media.id, token, options);

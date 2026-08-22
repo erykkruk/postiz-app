@@ -33,9 +33,9 @@ import { GmbProvider } from '@gitroom/nestjs-libraries/integrations/social/gmb.p
 
 export const socialIntegrationList: SocialProvider[] = [
   new XProvider(),
-  // Post for Me - publikacja przez postforme.dev zamiast wlasnej aplikacji
-  // deweloperskiej platformy (TikTok czeka u nas na weryfikacje Business Center).
-  // Jeden kanal, platforme wybiera sie przy podlaczeniu.
+  // Post for Me - publishes through postforme.dev instead of your own developer
+  // app on the platform (our TikTok app is still waiting on Business Center
+  // review). One channel, and you pick the platform when connecting it.
   new PostForMeProvider(),
   new LinkedinProvider(),
   new LinkedinPageProvider(),

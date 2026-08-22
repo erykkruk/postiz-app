@@ -10,8 +10,8 @@ import { LoadingComponent } from '@gitroom/frontend/components/layout/loading';
 type Point = { date: string; total: number };
 type Metric = { label: string; average?: boolean; data: Point[] };
 
-// Metryki z inboxa liczymy z naszej bazy, nie z platform - dzieki temu
-// "ile ludzi do nas pisze" dziala tak samo na kazdym kanale i nie zjada limitow API.
+// Inbox metrics are computed from our own database rather than the platforms, so
+// "how many people write to us" works the same on every channel and costs no API quota.
 const INBOX_METRICS = {
   comment: 'Comments from people',
   message: 'Messages from people',
@@ -20,8 +20,7 @@ const INBOX_METRICS = {
 
 const day = (iso: string) => dayjs(iso).format('YYYY-MM-DD');
 
-// Sumujemy po dacie, zeby jeden slupek = jeden dzien niezaleznie od tego,
-// ile kanalow bylo zaznaczonych.
+// Summed per date so one point is one day, no matter how many channels are selected.
 const mergeByDate = (metrics: Metric[]): Metric[] => {
   const byLabel = new Map<
     string,
@@ -52,7 +51,7 @@ const mergeByDate = (metrics: Metric[]): Metric[] => {
     average: entry.average,
     data: Array.from(entry.dates.entries())
       .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-      // Procenty (average) nie sumuja sie miedzy kanalami - bierzemy srednia.
+      // Percentages do not add up across channels - average them instead.
       .map(([date, total]) => ({
         date,
         total:
@@ -61,7 +60,7 @@ const mergeByDate = (metrics: Metric[]): Metric[] => {
   }));
 };
 
-// Pusty szkielet dni, zeby wykres nie klamal, ze w luce nic nie bylo mierzone.
+// An empty day scaffold, so a gap in the data does not read as a measured zero.
 const fillDays = (data: Point[], days: number): Point[] => {
   const byDate = new Map(data.map((p) => [p.date, p.total]));
   const out: Point[] = [];
@@ -82,8 +81,8 @@ const format = (metric: Metric) => {
     : Math.round(value).toLocaleString('pl-PL');
 };
 
-// Zmiana wzgledem poprzedniego okresu tej samej dlugosci - bez tego
-// sama liczba nie mowi, czy idzie w gore czy w dol.
+// Change against the previous window of the same length - without it the bare
+// number says nothing about direction.
 const trend = (data: Point[]) => {
   if (data.length < 4) return null;
   const half = Math.floor(data.length / 2);
@@ -136,7 +135,7 @@ export const GeneralAnalytics: FC<{
     }
   );
 
-  // Komentarze i wiadomosci od ludzi z zewnatrz, dzien po dniu, tylko z zaznaczonych kanalow.
+  // Comments and messages from other people, day by day, for the selected channels only.
   const inboxMetrics: Metric[] = useMemo(() => {
     if (!data) return [];
     const since = dayjs().subtract(date, 'day');
@@ -194,7 +193,7 @@ export const GeneralAnalytics: FC<{
     return [...platform, ...inboxMetrics].filter((m) => m.data.length);
   }, [data, inboxMetrics]);
 
-  // Wklad pojedynczego kanalu - odpowiedz na "ile nam tam z tego wchodzi".
+  // What a single channel contributes - the answer to "how much of this comes from where".
   const perChannel = useMemo(() => {
     if (!data) return [];
     return data.platform

@@ -321,9 +321,9 @@ export class IntegrationService {
   // --- Inbox: komentarze i wiadomosci ---
 
   /**
-   * Twardy limit czasu na jeden kanal. Bez tego zakladka wisi w nieskonczonosc:
-   * SocialAbstract.fetch ponawia nieudane wywolania z odczekiwaniem, wiec kanal
-   * bez uprawnien potrafi odpowiadac minutami zamiast od razu zglosic blad.
+   * Hard timeout for a single channel. Without it the tab hangs forever:
+   * SocialAbstract.fetch retries failed calls with a backoff, so one channel
+   * without the right permission can take minutes instead of failing fast.
    */
   private withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
     return Promise.race([
@@ -334,13 +334,13 @@ export class IntegrationService {
     ]);
   }
 
-  /** Token kanalu, odswiezony jesli wygasl. Null = kanal wymaga ponownego logowania. */
+  /** Channel token, refreshed when expired. Null means the channel must be reconnected. */
   private async freshToken(org: Organization, integration: any) {
     if (!dayjs(integration?.tokenExpiration).isBefore(dayjs())) {
       return integration.token;
     }
     const data = await this._refreshIntegrationService.refresh(integration);
-    // refresh zwraca false, gdy kanal wymaga ponownego zalogowania.
+    // refresh returns false when the channel has to be reconnected.
     if (!data || typeof data === 'boolean' || !data.accessToken) {
       return null;
     }
@@ -380,8 +380,8 @@ export class IntegrationService {
   }
 
   /**
-   * Pobiera dane jednego kanalu z platformy i zapisuje je lokalnie.
-   * Wolane przez cron, nie przez widok - widok czyta juz gotowe dane z bazy.
+   * Fetches one channel from the platform and stores the result locally.
+   * Called by the cron, never by the view - the view reads ready rows from the database.
    */
   async syncChannel(
     org: string,
@@ -467,8 +467,8 @@ export class IntegrationService {
               authorName: conv.participantName,
               authorId: conv.participantId,
               content: last ? last.text : '',
-              // Cala rozmowa idzie do payloadu, zeby panel mogl ja pokazac
-              // bez ponownego odpytywania platformy.
+              // The whole thread goes into the payload so the panel can render it
+              // without hitting the platform again.
               payload: conv as any,
               happenedAt: new Date(conv.updatedAt),
               isOwn: false,
@@ -488,7 +488,7 @@ export class IntegrationService {
     }
   }
 
-  /** Synchronizuje wszystkie kanaly organizacji. Kanaly rownolegle. */
+  /** Syncs every channel of an organization, in parallel. */
   async syncOrganization(org: string, kind: 'comment' | 'conversation') {
     const integrations = await this._integrationRepository.getIntegrationsList(
       org
@@ -531,7 +531,7 @@ export class IntegrationService {
     };
   }
 
-  /** Lista kanalow do panelu inboxa. Szybka - bez wywolan do platform. */
+  /** Channel list for the inbox panel. Fast - it never calls the platforms. */
   async getInboxChannels(org: Organization) {
     const integrations = await this._integrationRepository.getIntegrationsList(
       org.id
@@ -549,8 +549,8 @@ export class IntegrationService {
           picture: i.picture,
           provider: i.providerIdentifier,
           profile: i.profile,
-          // Klient (customer) jest juz dociagany przez getIntegrationsList -
-          // panel grupuje po nim kanaly tak samo jak menu w kalendarzu.
+          // The customer relation is already loaded by getIntegrationsList -
+          // the panel groups channels by it the same way the calendar menu does.
           customer: i.customer ? { id: i.customer.id, name: i.customer.name } : null,
           supportsComments: !!provider?.recentComments,
           supportsChats: !!provider?.conversations,
@@ -559,9 +559,9 @@ export class IntegrationService {
   }
 
   // --- Oznaczenia "przeczytane" ---
-  // Trzymane w Redisie, nie w bazie: nie wymaga migracji Prisma na produkcji,
+  // Kept in Redis rather than the database: no Prisma migration needed in production,
   // a przezywa restarty, bo Redis ma wlasny wolumen. Zbior per organizacja,
-  // wiec oznaczenie widzi caly zespol, nie tylko jedna przegladarka.
+  // so the whole team sees the same read state, not just one browser.
   private readKey(org: string) {
     return `inbox:read:${org}`;
   }
@@ -581,21 +581,21 @@ export class IntegrationService {
     try {
       if (read) {
         await ioRedis.sadd(this.readKey(org.id), ...ids);
-        // Bez wygasania zbior rosnie w nieskonczonosc; 90 dni to znacznie
-        // wiecej niz okno, w ktorym wracamy do starych komentarzy.
+        // Without an expiry the set grows forever; 90 days is far longer than
+        // the window in which anyone comes back to an old comment.
         await ioRedis.expire(this.readKey(org.id), 60 * 60 * 24 * 90);
       } else {
         await ioRedis.srem(this.readKey(org.id), ...ids);
       }
     } catch {
-      // brak Redisa nie moze blokowac odpowiadania
+      // a Redis outage must not block replying
     }
-    // Zapis takze w bazie - Redis jest szybki, ale baza jest zrodlem prawdy
-    // po restarcie i widzi go kazdy, kto otworzy panel.
+    // Written to the database as well - Redis is fast, but the database is the
+    // source of truth that survives restarts and is shared by the whole team.
     try {
       await this._inboxRepository.markRead(org.id, ids, read);
     } catch {
-      // brak wpisu w bazie nie moze blokowac oznaczania
+      // a missing row must not block marking as read
     }
 
     return { success: true };
@@ -606,9 +606,9 @@ export class IntegrationService {
   private describeError(err: any): string {
     if (!err) return 'Unknown error';
     if (typeof err === 'string') {
-      // SocialAbstract pakuje odpowiedz platformy w {identifier, json},
+      // SocialAbstract wraps the platform response in {identifier, json},
       // gdzie json to zserializowany blad Graph API - rozpakowujemy go,
-      // zeby w UI nie ladowal surowy JSON.
+      // so the UI never renders raw JSON.
       const nested = this.unwrapPlatformError(err);
       if (nested) return nested;
       return err.slice(0, 200);
@@ -648,11 +648,11 @@ export class IntegrationService {
   }
 
   /**
-   * Wynik z cache'u, jesli jest swiezy.
+   * Returns the cached result when it is still fresh.
    *
-   * Inbox odpytuje platformy przy kazdym wejsciu na zakladke, a Graph API
-   * potrafi odpowiadac kilkanascie sekund na kanal. Cache sprawia, ze widok
-   * pojawia sie natychmiast, a swieze dane dociagaja sie w tle.
+   * The inbox hits the platforms on every visit to the tab, and the Graph API
+   * can take over ten seconds per channel. The cache makes the view appear
+   * immediately while fresh data is fetched in the background.
    */
   private inboxCacheKey(org: string, id: string, kind: string) {
     return `inbox:${org}:${id}:${kind}`;
@@ -674,8 +674,8 @@ export class IntegrationService {
     value: any
   ) {
     try {
-      // 10 minut: dluzej niz typowa sesja przegladania, krocej niz okno
-      // publikacji, wiec nowe komentarze i tak zostana zauwazone.
+      // 10 minutes: longer than a typical browsing session, shorter than the gap
+      // between publications, so new comments are picked up anyway.
       await ioRedis.set(
         this.inboxCacheKey(org, id, kind),
         JSON.stringify(value),
@@ -683,12 +683,12 @@ export class IntegrationService {
         600
       );
     } catch {
-      // brak cache nie moze psuc odpowiedzi
+      // a cache miss must not break the response
     }
   }
 
-  /** Komentarze JEDNEGO kanalu. Frontend odpytuje kanaly osobno, dzieki czemu
-   *  wolny kanal nie blokuje calego widoku i wyniki pojawiaja sie stopniowo.
+  /** Comments for a SINGLE channel. The frontend queries channels separately so
+   *  one slow channel cannot block the whole view and results appear gradually.
    *  `force` pomija cache (przycisk odswiezania). */
   async getChannelComments(org: Organization, id: string, force = false) {
     const integration = await this.getIntegrationById(org.id, id);
@@ -750,7 +750,7 @@ export class IntegrationService {
     }
   }
 
-  /** Rozmowy JEDNEGO kanalu. `force` pomija cache. */
+  /** Conversations for a SINGLE channel. `force` bypasses the cache. */
   async getChannelConversations(org: Organization, id: string, force = false) {
     const integration = await this.getIntegrationById(org.id, id);
     if (!integration) {
@@ -792,11 +792,11 @@ export class IntegrationService {
   }
 
   /**
-   * Zbiera komentarze ze wszystkich kanalow organizacji.
+   * Collects comments from every channel of an organization.
    *
-   * Komentarze napisane z naszych wlasnych kanalow (np. pierwszy komentarz
-   * z linkiem, ktory Postiz dodaje przy publikacji) sa odsiewane - inbox ma
-   * pokazywac tylko to, na co trzeba odpowiedziec.
+   * Comments written by our own channels (for example the first comment with a
+   * link that Postiz adds when publishing) are filtered out - the inbox is for
+   * things that still need a reply.
    */
   async getInboxComments(org: Organization) {
     const integrations = await this._integrationRepository.getIntegrationsList(
@@ -812,7 +812,7 @@ export class IntegrationService {
         .filter(Boolean)
     );
 
-    // Kanaly odpytujemy rownolegle - sekwencyjnie 13 kanalow trwalo minuty
+    // Channels are queried in parallel - sequentially, 13 channels took minutes
     // i zakladka wisiala na "Wczytuje...".
     const usable = integrations.filter(
       (i: any) =>

@@ -46,8 +46,8 @@ type Conversation = {
   messages: Message[];
 };
 
-// Jedna pozycja listy srodkowej, niezaleznie od tego, czy to komentarz,
-// czy rozmowa - dzieki temu lista i panel szczegolow maja jeden ksztalt.
+// One row of the middle list, whether it is a comment or a conversation, so the
+// list and the detail panel share a single shape.
 type Item = {
   id: string;
   channel: Channel;
@@ -87,9 +87,9 @@ const explain = (error: any): string => {
   return e;
 };
 
-// Avatar kanalu w tym samym jezyku wizualnym co menu kanalow w Launches:
-// zdjecie profilowe + realna ikona platformy w rogu, zamiast kolorowej kropki.
-// Dzieki temu od razu widac, czy pozycja jest z Facebooka, czy z Instagrama.
+// Channel avatar in the same visual language as the channel menu in Launches:
+// the profile picture plus the real platform icon in the corner instead of a
+// colored dot, so you can tell Facebook from Instagram at a glance.
 const Avatar: FC<{ channel: Channel; size?: number }> = ({
   channel,
   size = 32,
@@ -138,8 +138,8 @@ const ChannelRow: FC<{
   <div
     title={on ? 'Click to hide' : 'Click to show'}
     onClick={onClick}
-    // Aktywny kanal jest w pelni widoczny, wylaczony przygaszony -
-    // ten sam jezyk wizualny co panel kanalow w Analytics.
+    // An enabled channel is fully visible and a disabled one is dimmed - the same
+    // visual language as the channel panel in Analytics.
     className={`flex items-center gap-[12px] py-[9px] px-[4px] cursor-pointer transition-opacity ${
       on ? 'opacity-100' : 'opacity-35 hover:opacity-60'
     }`}
@@ -165,8 +165,9 @@ const ChannelRow: FC<{
   </div>
 );
 
-// Kanaly zebrane pod klientem, tak jak menu kanalow w kalendarzu (Launches).
-// Stan zwiniecia trzymamy w localStorage per grupa, zeby przezyl przeladowanie.
+// Channels grouped under their customer, like the channel menu in the calendar
+// (Launches). The collapsed state is kept in localStorage per group so it
+// survives a reload.
 const ChannelGroup: FC<{
   group: Group;
   single: boolean;
@@ -279,9 +280,9 @@ export const Inbox: FC<{ mode: 'comments' | 'chats' }> = ({ mode }) => {
     loadChannels();
   }, [loadChannels]);
 
-  // Wszystko jednym zapytaniem do naszej bazy. Platformy odpytuje cron w tle,
-  // wiec panel otwiera sie natychmiast, niezaleznie od tego, ile kanalow jest
-  // podpietych i jak wolno odpowiada dzis Meta.
+  // Everything in a single query against our own database. The cron polls the
+  // platforms in the background, so the panel opens immediately no matter how
+  // many channels are connected or how slow Meta is today.
   const loadData = useCallback(
     async (sync = false) => {
       setLoading(true);
@@ -313,13 +314,13 @@ export const Inbox: FC<{ mode: 'comments' | 'chats' }> = ({ mode }) => {
     loadData();
   }, [loadData]);
 
-  // Jedna plaska lista pozycji ze wszystkich zaznaczonych kanalow, najnowsze na gorze.
+  // One flat list of items from every selected channel, newest first.
   const items: Item[] = useMemo(() => {
     const byId = new Map(channels.map((c) => [c.id, c]));
     return (
       rows
-        // Wlasne odpowiedzi nie sa zgloszeniem do obsluzenia - pokazujemy je
-        // dopiero w watku, po otwarciu komentarza.
+        // Our own replies are not something to action - they only show up inside
+        // the thread once a comment is opened.
         .filter((r) => selected.has(r.integrationId) && !r.isOwn)
         .map((r) => {
           const channel = byId.get(r.integrationId);
@@ -390,8 +391,8 @@ export const Inbox: FC<{ mode: 'comments' | 'chats' }> = ({ mode }) => {
     });
   }, []);
 
-  // Blad synchronizacji kanalu pokazujemy przy kanale, zeby bylo widac,
-  // ktore konto wymaga uwagi.
+  // A channel sync error is shown next to that channel, so it is obvious which
+  // account needs attention.
   const syncError = useCallback(
     (integrationId: string) =>
       sync.find(
@@ -520,8 +521,8 @@ export const Inbox: FC<{ mode: 'comments' | 'chats' }> = ({ mode }) => {
               <div
                 key={item.id}
                 onClick={() => open(item)}
-                // Aktywny watek dostaje pasek akcentu i tlo - przy dlugiej liscie
-                // czatow samo przyciemnienie tla bylo za slabo widoczne.
+                // The open thread gets an accent bar and a tint - in a long chat list
+                // a background shade alone was too easy to miss.
                 className={`flex gap-[10px] py-[11px] pe-[6px] ps-[9px] cursor-pointer border-b border-[#232936] border-s-[3px] transition-colors ${
                   isActive
                     ? 'bg-customColor21/15 border-s-customColor21'
@@ -685,7 +686,7 @@ export const Inbox: FC<{ mode: 'comments' | 'chats' }> = ({ mode }) => {
                     onClick={() => {
                       if (
                         confirm(
-                          'Deleteac komentarz na stale? Tego nie da sie cofnac.'
+                          'Delete this comment permanently? This cannot be undone.'
                         )
                       ) {
                         act(
@@ -720,7 +721,7 @@ export const Inbox: FC<{ mode: 'comments' | 'chats' }> = ({ mode }) => {
                       )
                     }
                   >
-                    {busy ? 'Sending...' : 'Odpowiedz'}
+                    {busy ? 'Sending...' : 'Reply'}
                   </button>
                 </div>
               </>

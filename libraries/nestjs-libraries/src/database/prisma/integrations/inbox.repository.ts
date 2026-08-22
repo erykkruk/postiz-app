@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/prisma.service';
 
 /**
- * Lokalna kopia komentarzy i rozmow z platform.
+ * A local copy of the comments and conversations from the platforms.
  *
- * Panel czyta wylacznie stad, dzieki czemu otwiera sie natychmiast zamiast
- * czekac na Graph API. Swiezosc zapewnia cron, ktory synchronizuje kanaly
- * w tle.
+ * The panel reads only from here, which is why it opens instantly instead of
+ * waiting on the Graph API. Freshness is handled by the cron that syncs the
+ * channels in the background.
  */
 @Injectable()
 export class InboxRepository {
@@ -18,8 +18,8 @@ export class InboxRepository {
   list(org: string, kind: string, integrationIds?: string[]) {
     return this._items.model.inboxItem.findMany({
       where: {
-        // Wlasne komentarze TEZ pobieramy: nie trafiaja na liste, ale sa
-        // potrzebne, zeby pokazac nasza odpowiedz w watku pod komentarzem.
+        // Our own comments are fetched too: they never reach the list, but they
+        // are needed to show our reply inside the thread under a comment.
         organizationId: org,
         kind,
         ...(integrationIds?.length
@@ -32,9 +32,9 @@ export class InboxRepository {
   }
 
   /**
-   * Zapisuje pobrane elementy. Klucz (integrationId, externalId, kind) sprawia,
-   * ze ponowna synchronizacja aktualizuje istniejacy wpis zamiast tworzyc
-   * duplikat, a raz ustawione `isRead` przezywa kolejne przebiegi.
+   * Stores fetched items. The (integrationId, externalId, kind) key makes a
+   * re-sync update the existing row instead of creating a duplicate, so an
+   * `isRead` flag survives later runs.
    */
   async upsertMany(
     org: string,

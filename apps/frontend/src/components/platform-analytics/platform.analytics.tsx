@@ -37,8 +37,8 @@ export const PlatformAnalytics = () => {
   const { disableXAnalytics } = useVariables();
 
   const [current, setCurrent] = useState(0);
-  // 'general' laczy dane ze wszystkich zaznaczonych kanalow, 'single' to
-  // dotychczasowy widok jednego kanalu.
+  // 'general' merges every selected channel, 'single' is the existing
+  // one-channel view.
   const [view, setView] = useState<'single' | 'general'>('single');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [key, setKey] = useState(7);

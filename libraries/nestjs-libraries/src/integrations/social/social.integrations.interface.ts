@@ -98,17 +98,17 @@ export interface ISocialMediaIntegration {
     accessToken: string
   ): Promise<SocialCommentReply>; // Answers one specific comment
 
-  // Zbiera komentarze z ostatnich publikacji kanalu. Provider sam znajduje
-  // swoje posty, bo Instagram wymaga przejscia przez /media, a Facebook przez
-  // /posts - dzieki temu warstwa nad providerem nie musi tego wiedziec.
+  // Collects comments from the channel's recent publications. The provider finds
+  // its own posts, because Instagram goes through /media and Facebook through
+  // /posts - so the layer above the provider does not have to know the difference.
   recentComments?(
     id: string,
     accessToken: string,
     options?: CommentsQuery
   ): Promise<SocialComment[]>;
 
-  // Moderacja komentarzy. Ukrywanie jest lagodniejsze od usuwania: komentarz
-  // znika dla innych, ale jego autor nadal go widzi, wiec nie wraca z pretensjami.
+  // Comment moderation. Hiding is gentler than deleting: the comment disappears
+  // for everyone else while its author still sees it, so nobody comes back angry.
   hideComment?(
     commentId: string,
     hidden: boolean,
