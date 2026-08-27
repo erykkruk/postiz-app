@@ -344,6 +344,7 @@ model Integration {
   @@index([disabled])
   inboxItems           InboxItem[]
   postStats            PostStat[]
+  postStatDays         PostStatDay[]
 }
 
 model Signatures {
@@ -972,3 +973,25 @@ model PostStat {
   @@index([postId])
   @@index([fetchedAt])
 }
+
+// Dzienny slad metryk publikacji. PostStat trzyma tylko stan biezacy (nadpisywany
+// przy kazdym odczycie), wiec bez tej tabeli nie da sie pokazac, jak liczby rosly
+// w czasie - platformy nie oddaja historii wstecz, wiec jedyny sposob to zapisywac
+// ja od teraz. Jeden wiersz na publikacje na dzien, nadpisywany w ciagu dnia.
+model PostStatDay {
+  id             String      @id @default(uuid())
+  organizationId String
+  integrationId  String
+  integration    Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  releaseId      String
+  day            DateTime    @db.Date
+  metrics        Json
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @default(now()) @updatedAt
+
+  @@unique([integrationId, releaseId, day])
+  @@index([organizationId, day])
+}
+

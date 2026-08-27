@@ -10,7 +10,35 @@ import { PrismaRepository } from '@gitroom/nestjs-libraries/database/prisma/pris
  */
 @Injectable()
 export class PostStatsRepository {
-  constructor(private _stats: PrismaRepository<'postStat'>) {}
+  constructor(
+    private _stats: PrismaRepository<'postStat'>,
+    private _days: PrismaRepository<'postStatDay'>
+  ) {}
+
+  /**
+   * Keeps one row per publication per day.
+   *
+   * PostStat only ever holds the latest reading, so without this there is no way
+   * to draw how the numbers grew: no platform hands back a history, which makes
+   * writing one down from today the only option.
+   */
+  saveDay(
+    org: string,
+    integrationId: string,
+    releaseId: string,
+    metrics: any
+  ) {
+    const day = new Date();
+    day.setUTCHours(0, 0, 0, 0);
+
+    return this._days.model.postStatDay.upsert({
+      where: {
+        integrationId_releaseId_day: { integrationId, releaseId, day },
+      },
+      create: { organizationId: org, integrationId, releaseId, day, metrics },
+      update: { metrics },
+    });
+  }
 
   /**
    * Posts whose numbers are worth asking the platform about again.

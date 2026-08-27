@@ -91,17 +91,6 @@ export const PlatformAnalytics = () => {
     ],
     [t]
   );
-  // Posts are read from our own table, so the range is not limited by what a
-  // platform is willing to report over time.
-  const postOptions = useMemo(
-    () => [
-      { key: 7, value: t('7_days', '7 Days') },
-      { key: 30, value: t('30_days', '30 Days') },
-      { key: 90, value: t('90_days', '90 Days') },
-      { key: 180, value: t('180_days', '180 Days') },
-    ],
-    [t]
-  );
   const options = useMemo(() => {
     if (!currentIntegration) {
       return [];
@@ -356,29 +345,10 @@ export const PlatformAnalytics = () => {
         </div>
 
         {view === 'posts' ? (
-          <div className="flex-1 flex flex-col gap-[14px]">
-            <div className="max-w-[200px]">
-              <Select
-                label=""
-                name="posts-date"
-                disableForm={true}
-                hideErrors={true}
-                value={key}
-                onChange={(e) => setKey(+e.target.value)}
-              >
-                {postOptions.map((option) => (
-                  <option key={option.key} value={option.key}>
-                    {option.value}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            <div className="flex-1">
-              <PostsAnalytics
-                integrations={pickedIntegrations as any}
-                date={key}
-              />
-            </div>
+          // The date range lives inside this view - it offers custom dates,
+          // which the shared preset dropdown cannot express.
+          <div className="flex-1">
+            <PostsAnalytics integrations={pickedIntegrations as any} />
           </div>
         ) : view === 'general' ? (
           <div className="flex-1 flex flex-col gap-[14px]">
