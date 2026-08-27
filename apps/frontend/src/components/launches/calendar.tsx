@@ -1025,6 +1025,9 @@ const CalendarItem: FC<{
     user?.impersonate &&
     post.creationMethod &&
     post.creationMethod !== 'UNKNOWN';
+  const { postStats } = useCalendar();
+  // Only published posts have numbers, and only some platforms report them.
+  const stats = postStats?.[post.id];
   const preview = useCallback(() => {
     window.open(`/p/` + post.id + '?share=true', '_blank');
   }, [post]);
@@ -1180,6 +1183,7 @@ const CalendarItem: FC<{
                   t('no_content', 'no content')}
               </div>
             </div>
+          {!!stats && <PostStatsLine stats={stats} />}
         </div>
         {showTime && (
           <div className="text-textColor/50 text-[12px] whitespace-nowrap flex items-center">
@@ -1261,6 +1265,36 @@ const CopyDebug = () => {
     </svg>
   );
 };
+/**
+ * The headline numbers under a published post.
+ *
+ * Deliberately three at most: the cell is one line tall and a full breakdown
+ * belongs in the statistics modal, which this line is a hint to open.
+ */
+const PostStatsLine: FC<{ stats: Record<string, any> }> = ({ stats }) => {
+  const shown = (
+    [
+      ['views', 'views'],
+      ['likes', 'likes'],
+      ['comments', 'comments'],
+    ] as const
+  ).filter(([key]) => typeof stats?.[key] === 'number');
+
+  if (!shown.length) {
+    return null;
+  }
+
+  return (
+    <div className="mt-auto pt-[2px] flex gap-[8px] text-[10px] text-[#8B8B8B] text-start">
+      {shown.map(([key, label]) => (
+        <span key={key}>
+          {Math.round(stats[key]).toLocaleString('pl-PL')} {label}
+        </span>
+      ))}
+    </div>
+  );
+};
+
 const Duplicate = () => {
   const t = useT();
   return (

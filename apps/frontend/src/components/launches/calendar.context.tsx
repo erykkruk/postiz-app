@@ -43,6 +43,10 @@ export const CalendarContext = createContext({
     refreshNeeded?: boolean;
   })[],
   trendings: [] as string[],
+  // Platform numbers for the posts currently on screen, keyed by post id.
+  // Filled from our own table, so the calendar shows them without waiting on
+  // any platform.
+  postStats: {} as Record<string, any>,
   posts: [] as Array<
     Post & {
       integration: Integration;
@@ -242,6 +246,34 @@ export const CalendarWeekProvider: FC<{
     }
   );
 
+  // One request for the whole visible range instead of one per post.
+  const loadStats = useCallback(async () => {
+    const query = new URLSearchParams({
+      from: newDayjs(filters.startDate).startOf('day').utc().format(),
+      to: newDayjs(filters.endDate).endOf('day').utc().format(),
+    }).toString();
+
+    return (await fetch(`/posts/stats/report?${query}`)).json();
+  }, [filters.startDate, filters.endDate]);
+
+  const { data: stats } = useSWR(`/posts-stats-${params}`, loadStats, {
+    revalidateOnFocus: false,
+    refreshWhenHidden: false,
+    refreshWhenOffline: false,
+  });
+
+  const postStats = useMemo(() => {
+    const map: Record<string, any> = {};
+
+    for (const item of stats?.items || []) {
+      if (item.postId) {
+        map[item.postId] = item.metrics;
+      }
+    }
+
+    return map;
+  }, [stats]);
+
   const defaultSign = useCallback(async () => {
     return await (await fetch('/signatures/default')).json();
   }, []);
@@ -338,6 +370,7 @@ export const CalendarWeekProvider: FC<{
     <CalendarContext.Provider
       value={{
         trendings,
+        postStats,
         reloadCalendarView,
         ...filters,
         posts: calendarIsLoading ? [] : internalData,

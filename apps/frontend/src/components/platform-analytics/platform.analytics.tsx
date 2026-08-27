@@ -9,6 +9,7 @@ import SafeImage from '@gitroom/react/helpers/safe.image';
 import { useFetch } from '@gitroom/helpers/utils/custom.fetch';
 import { RenderAnalytics } from '@gitroom/frontend/components/platform-analytics/render.analytics';
 import { GeneralAnalytics } from '@gitroom/frontend/components/platform-analytics/general.analytics';
+import { PostsAnalytics } from '@gitroom/frontend/components/platform-analytics/posts.analytics';
 import { Select } from '@gitroom/react/form/select';
 import { Button } from '@gitroom/react/form/button';
 import { useRouter } from 'next/navigation';
@@ -38,9 +39,9 @@ export const PlatformAnalytics = () => {
   const { disableXAnalytics } = useVariables();
 
   const [current, setCurrent] = useState(0);
-  // 'general' merges every selected channel, 'single' is the existing
-  // one-channel view.
-  const [view, setView] = useState<'single' | 'general'>('single');
+  // 'general' merges every selected channel over time, 'posts' lists the
+  // individual publications, 'single' is the existing one-channel view.
+  const [view, setView] = useState<'single' | 'general' | 'posts'>('single');
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [key, setKey] = useState(7);
   const [refresh, setRefresh] = useState(false);
@@ -88,6 +89,17 @@ export const PlatformAnalytics = () => {
       { key: 7, value: t('7_days', '7 Days') },
       { key: 30, value: t('30_days', '30 Days') },
       { key: 90, value: t('90_days', '90 Days') },
+    ],
+    [t]
+  );
+  // Posts are read from our own table, so the range is not limited by what a
+  // platform is willing to report over time.
+  const postOptions = useMemo(
+    () => [
+      { key: 7, value: t('7_days', '7 Days') },
+      { key: 30, value: t('30_days', '30 Days') },
+      { key: 90, value: t('90_days', '90 Days') },
+      { key: 180, value: t('180_days', '180 Days') },
     ],
     [t]
   );
@@ -206,7 +218,7 @@ export const PlatformAnalytics = () => {
             <h2 className="group-[.sidebar]:hidden flex-1 text-[20px] font-[500]">
               {t('channels')}
             </h2>
-            {view === 'general' && (
+            {view !== 'single' && (
               <button
                 className="group-[.sidebar]:hidden text-[11px] text-customColor21 me-[8px]"
                 onClick={() =>
@@ -252,7 +264,7 @@ export const PlatformAnalytics = () => {
                   );
                   return;
                 }
-                if (view === 'general') {
+                if (view !== 'single') {
                   setPicked((prev) => {
                     const next = new Set(prev);
                     next.has(integration.id)
@@ -270,7 +282,7 @@ export const PlatformAnalytics = () => {
               }}
               className={clsx(
                 'flex gap-[12px] items-center group/profile justify-center hover:bg-boxHover rounded-e-[8px] cursor-pointer',
-                view === 'general'
+                view !== 'single'
                   ? !picked.has(integration.id) &&
                       'opacity-20 hover:opacity-100'
                   : currentIntegration.id !== integration.id &&
@@ -324,7 +336,7 @@ export const PlatformAnalytics = () => {
       </div>
       <div className="bg-newBgColorInner flex-1 flex-col flex p-[20px] gap-[12px]">
         <div className="flex items-center gap-[8px]">
-          {(['single', 'general'] as const).map((item) => (
+          {(['single', 'general', 'posts'] as const).map((item) => (
             <button
               key={item}
               onClick={() => setView(item)}
@@ -335,10 +347,12 @@ export const PlatformAnalytics = () => {
             >
               {item === 'single'
                 ? t('per_channel', 'Per channel')
-                : t('general', 'General')}
+                : item === 'general'
+                ? t('general', 'General')
+                : t('posts', 'Posts')}
             </button>
           ))}
-          {view === 'general' && (
+          {view !== 'single' && (
             <span className="text-[12px] text-[#8B8B8B]">
               {pickedIntegrations.length} / {sortedIntegrations.length}{' '}
               {t('channels_selected', 'channels selected')}
@@ -346,7 +360,32 @@ export const PlatformAnalytics = () => {
           )}
         </div>
 
-        {view === 'general' ? (
+        {view === 'posts' ? (
+          <div className="flex-1 flex flex-col gap-[14px]">
+            <div className="max-w-[200px]">
+              <Select
+                label=""
+                name="posts-date"
+                disableForm={true}
+                hideErrors={true}
+                value={key}
+                onChange={(e) => setKey(+e.target.value)}
+              >
+                {postOptions.map((option) => (
+                  <option key={option.key} value={option.key}>
+                    {option.value}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex-1">
+              <PostsAnalytics
+                integrations={pickedIntegrations as any}
+                date={key}
+              />
+            </div>
+          </div>
+        ) : view === 'general' ? (
           <div className="flex-1 flex flex-col gap-[14px]">
             <div className="max-w-[200px]">
               <Select
