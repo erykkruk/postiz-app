@@ -24,7 +24,8 @@ export class PostStatsService {
     private _integrationRepository: IntegrationRepository,
     private _integrationService: IntegrationService,
     private _integrationManager: IntegrationManager,
-    private _posts: PrismaRepository<'post'>
+    private _posts: PrismaRepository<'post'>,
+    private _integrations: PrismaRepository<'integration'>
   ) {}
 
   /**
@@ -55,14 +56,24 @@ export class PostStatsService {
       },
     });
 
-    // Only what is missing. Re-registering every post each hour would be a few
-    // hundred pointless writes, and the row never changes once it exists.
-    const known = await this._postStatsRepository.knownReleaseIds(
+    // Channels whose platform reports nothing per post are left out entirely.
+    // Registering them would be worse than useless: the sync skips them, so
+    // their rows never get a fetchedAt, and they would sit at the top of the
+    // queue forever taking slots from posts that do have numbers.
+    const measurable = await this.measurableIntegrations(
       posts.map((p) => p.integrationId)
     );
 
+    // Only what is missing. Re-registering every post each hour would be a few
+    // hundred pointless writes, and the row never changes once it exists.
+    const known = await this._postStatsRepository.knownReleaseIds([
+      ...measurable,
+    ]);
+
     const missing = posts.filter(
-      (post) => !known.has(`${post.integrationId}:${post.releaseId}`)
+      (post) =>
+        measurable.has(post.integrationId) &&
+        !known.has(`${post.integrationId}:${post.releaseId}`)
     );
 
     for (const post of missing) {
@@ -76,6 +87,25 @@ export class PostStatsService {
     }
 
     return missing.length;
+  }
+
+  /** Of the given channels, the ones whose provider can report post numbers. */
+  private async measurableIntegrations(integrationIds: string[]) {
+    const rows = await this._integrations.model.integration.findMany({
+      where: { id: { in: [...new Set(integrationIds)] } },
+      select: { id: true, providerIdentifier: true },
+    });
+
+    return new Set(
+      rows
+        .filter(
+          (row: any) =>
+            !!this._integrationManager.getSocialIntegration(
+              row.providerIdentifier
+            )?.postStats
+        )
+        .map((row: any) => row.id)
+    );
   }
 
   /**
