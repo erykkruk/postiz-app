@@ -132,7 +132,45 @@ export interface ISocialMediaIntegration {
     message: string,
     accessToken: string
   ): Promise<{ id: string }>; // Answers one conversation
+
+  // --- Per post statistics ---
+  // How one published post performed. Separate from `analytics`, which reports
+  // the whole channel over time. Providers normalize into PostStatMetrics so
+  // the panel can sum a Facebook reel and an Instagram reel in one column
+  // without knowing what each platform calls its own numbers.
+  postStats?(
+    id: string, // Channel id on the platform, our internalId
+    postId: string, // Publication id on the platform, our releaseId
+    accessToken: string,
+    integration?: Integration
+  ): Promise<PostStatMetrics>;
 }
+
+// One published post, normalized across platforms.
+//
+// Every field is optional on purpose: no platform fills them all, and a missing
+// number must stay missing rather than become a zero, otherwise a sum over
+// channels silently understates the total. The UI hides what it does not get.
+export type PostStatMetrics = {
+  views?: number; // Plays or impressions, whatever the platform counts as a view
+  reach?: number; // Unique accounts, always lower than views
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  interactions?: number; // Platform's own engagement total, not our sum
+  followersGained?: number; // New followers credited to this post
+  replays?: number;
+  avgWatchMs?: number; // Average time watched per play
+  totalWatchMs?: number; // Watch time across all plays
+  // Share of viewers still watching at each second. Feeds the retention curve,
+  // which is how we pick creatives for organic - not by click-through rate.
+  retention?: Array<{ second: number; ratio: number }>;
+  permalink?: string;
+  // Anything the platform reports that has no shared field yet. Displayed as
+  // a raw list, never summed, because the meaning differs per platform.
+  extra?: Record<string, number>;
+};
 
 export type CommentsQuery = {
   limit?: number; // Provider default when omitted

@@ -2,6 +2,7 @@ import {
   AuthTokenDetails,
   PostDetails,
   PostResponse,
+  PostStatMetrics,
   SocialProvider,
 } from '@gitroom/nestjs-libraries/integrations/social/social.integrations.interface';
 import dayjs from 'dayjs';
@@ -28,6 +29,10 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
     'video.publish',
     'video.upload',
     'user.info.profile',
+    // Reads the counters under our own videos. A channel connected before this
+    // scope existed keeps working and simply reports no statistics until it is
+    // reconnected.
+    'video.list',
   ];
   override maxConcurrentJob = 1; // TikTok has strict video upload limits
   dto = TikTokDto;
@@ -362,6 +367,58 @@ export class TiktokProvider extends SocialAbstract implements SocialProvider {
     return {
       maxDurationSeconds: max_video_post_duration_sec,
     };
+  }
+
+  /**
+   * How one video performed.
+   *
+   * Only reachable for a channel connected natively, because the id we store
+   * has to be TikTok's own video id. Publishing through Post for Me gives us
+   * their internal job id instead, which TikTok does not recognise.
+   */
+  async postStats(
+    id: string,
+    postId: string,
+    accessToken: string
+  ): Promise<PostStatMetrics> {
+    const response = await this.queryJson(
+      'https://open.tiktokapis.com/v2/video/query/' +
+        '?fields=id,title,view_count,like_count,comment_count,share_count',
+      accessToken,
+      { filters: { video_ids: [postId] } }
+    );
+
+    const video = response?.data?.videos?.[0];
+    if (!video) {
+      return {};
+    }
+
+    return {
+      views: video.view_count,
+      likes: video.like_count,
+      comments: video.comment_count,
+      shares: video.share_count,
+      permalink: `https://www.tiktok.com/@${id}/video/${postId}`,
+    };
+  }
+
+  // TikTok reads take a POST body, which the shared softJson helper does not do.
+  private async queryJson(url: string, accessToken: string, body: any) {
+    try {
+      const response = await this.fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(body),
+      });
+
+      const json = await response.json();
+      return json?.error?.code && json.error.code !== 'ok' ? null : json;
+    } catch (err) {
+      return null;
+    }
   }
 
   private async uploadedVideoSuccess(

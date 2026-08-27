@@ -343,6 +343,7 @@ model Integration {
   @@index([refreshNeeded])
   @@index([disabled])
   inboxItems           InboxItem[]
+  postStats            PostStat[]
 }
 
 model Signatures {
@@ -932,4 +933,42 @@ model InboxSync {
 
   @@unique([integrationId, kind])
   @@index([organizationId])
+}
+
+// Wyniki pojedynczej publikacji pobrane z platformy, trzymane lokalnie.
+// Ten sam powod co przy InboxItem: widok ma sie otwierac od razu, a nie czekac
+// na kilkanascie wywolan Graph API. Odswieza je cron, tempem zaleznym od wieku
+// posta - swieze liczby zmieniaja sie co godzine, pol roku stare juz nigdy.
+model PostStat {
+  id             String      @id @default(uuid())
+  organizationId String
+  integrationId  String
+  integration    Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  // Nasz Post.id - bez relacji, zeby usuniecie wpisu z kalendarza nie kasowalo
+  // historii wynikow. Puste dla publikacji, ktorych juz u siebie nie mamy.
+  postId         String?
+
+  // Identyfikator publikacji po stronie platformy (Post.releaseId).
+  releaseId      String
+
+  // Znormalizowane metryki (PostStatMetrics). Json, bo kazda platforma podaje
+  // inny podzbior, a kolumna na kazda liczbe znaczylaby migracje przy kazdej
+  // zmianie po ich stronie.
+  metrics        Json
+
+  // Kiedy post zostal opublikowany - kopia z Post, zeby cron wybieral posty do
+  // odswiezenia bez joina.
+  publishedAt    DateTime?
+
+  fetchedAt      DateTime?
+  lastError      String?
+
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @default(now()) @updatedAt
+
+  @@unique([integrationId, releaseId])
+  @@index([organizationId, publishedAt])
+  @@index([postId])
+  @@index([fetchedAt])
 }

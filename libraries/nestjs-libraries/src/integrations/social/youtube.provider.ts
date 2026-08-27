@@ -4,6 +4,7 @@ import {
   CommentsQuery,
   PostDetails,
   PostResponse,
+  PostStatMetrics,
   SocialComment,
   SocialCommentReply,
   SocialProvider,
@@ -432,6 +433,117 @@ export class YoutubeProvider extends SocialAbstract implements SocialProvider {
     return {
       id: data.id!,
     };
+  }
+
+  /**
+   * How one video performed.
+   *
+   * Two sources, because they answer different questions. The Data API returns
+   * the public counters everyone sees (views, likes, comments). The Analytics
+   * API adds what only the owner can see: watch time, the share of the video an
+   * average viewer sits through, subscribers gained, and the retention curve -
+   * the number we actually pick creatives by.
+   */
+  async postStats(
+    id: string,
+    postId: string,
+    accessToken: string
+  ): Promise<PostStatMetrics> {
+    const { client, youtube, youtubeAnalytics } = clientAndYoutube();
+    client.setCredentials({ access_token: accessToken });
+
+    const metrics: PostStatMetrics = {
+      permalink: `https://www.youtube.com/watch?v=${postId}`,
+    };
+
+    try {
+      const { data } = await youtube(client).videos.list({
+        id: [postId],
+        part: ['statistics'],
+      });
+
+      const stats = data?.items?.[0]?.statistics;
+      if (stats) {
+        metrics.views = Number(stats.viewCount ?? 0);
+        metrics.likes = Number(stats.likeCount ?? 0);
+        metrics.comments = Number(stats.commentCount ?? 0);
+      }
+    } catch (err) {
+      // A deleted or private video still has a row in our calendar - leave the
+      // public counters unset rather than failing the whole sync.
+    }
+
+    // The owner-only numbers need a date range. Counting from the day YouTube
+    // started (2005) is simply "everything", the API has no lifetime shortcut.
+    const startDate = '2005-01-01';
+    const endDate = dayjs().format('YYYY-MM-DD');
+
+    try {
+      const { data } = await youtubeAnalytics(client).reports.query({
+        ids: 'channel==MINE',
+        startDate,
+        endDate,
+        filters: `video==${postId}`,
+        metrics:
+          'estimatedMinutesWatched,averageViewDuration,averageViewPercentage,' +
+          'subscribersGained,shares',
+      });
+
+      const columns = data?.columnHeaders?.map((c) => c.name) || [];
+      const row = data?.rows?.[0] || [];
+      const value = (name: string) => {
+        const index = columns.indexOf(name);
+        return index === -1 ? undefined : Number(row[index]);
+      };
+
+      const minutesWatched = value('estimatedMinutesWatched');
+      const averageSeconds = value('averageViewDuration');
+
+      metrics.totalWatchMs =
+        minutesWatched === undefined ? undefined : minutesWatched * 60_000;
+      metrics.avgWatchMs =
+        averageSeconds === undefined ? undefined : averageSeconds * 1000;
+      metrics.followersGained = value('subscribersGained');
+      metrics.shares = value('shares');
+
+      const averagePercentage = value('averageViewPercentage');
+      if (averagePercentage !== undefined) {
+        metrics.extra = {
+          ...(metrics.extra || {}),
+          averageViewPercentage: averagePercentage,
+        };
+      }
+    } catch (err) {
+      // Analytics lags behind publication by a day or two and answers 400 for a
+      // video it has no data on yet. The public counters above still stand.
+    }
+
+    try {
+      const { data } = await youtubeAnalytics(client).reports.query({
+        ids: 'channel==MINE',
+        startDate,
+        endDate,
+        filters: `video==${postId};audienceType==ORGANIC`,
+        metrics: 'audienceWatchRatio',
+        dimensions: 'elapsedVideoTimeRatio',
+        sort: 'elapsedVideoTimeRatio',
+      });
+
+      // YouTube reports retention as a share of the video length, Facebook as
+      // seconds. We keep the platform's own unit and let the chart label it.
+      const retention = (data?.rows || []).map((r: any) => ({
+        second: Number(r[0]),
+        ratio: Number(r[1]),
+      }));
+
+      if (retention.length) {
+        metrics.retention = retention;
+      }
+    } catch (err) {
+      // Retention needs a minimum number of views before YouTube will show it.
+    }
+
+    return metrics;
   }
 
   async analytics(

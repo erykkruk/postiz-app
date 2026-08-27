@@ -6,6 +6,7 @@ import { SentryModule } from '@sentry/nestjs/setup';
 import { FILTER } from '@gitroom/nestjs-libraries/sentry/sentry.exception';
 import { CheckMissingQueues } from '@gitroom/cron/tasks/check.missing.queues';
 import { SyncInbox } from '@gitroom/cron/tasks/sync.inbox';
+import { SyncPostStats } from '@gitroom/cron/tasks/sync.post.stats';
 import { PostNowPendingQueues } from '@gitroom/cron/tasks/post.now.pending.queues';
 
 @Module({
@@ -17,6 +18,6 @@ import { PostNowPendingQueues } from '@gitroom/cron/tasks/post.now.pending.queue
   ],
   controllers: [],
   providers: [FILTER, CheckMissingQueues,
-    SyncInbox, PostNowPendingQueues],
+    SyncInbox, SyncPostStats, PostNowPendingQueues],
 })
 export class CronModule {}

@@ -325,7 +325,7 @@ export class IntegrationService {
    * SocialAbstract.fetch retries failed calls with a backoff, so one channel
    * without the right permission can take minutes instead of failing fast.
    */
-  private withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
+  withTimeout<T>(promise: Promise<T>, ms: number, label: string) {
     return Promise.race([
       promise,
       new Promise<T>((_, reject) =>
@@ -335,7 +335,7 @@ export class IntegrationService {
   }
 
   /** Channel token, refreshed when expired. Null means the channel must be reconnected. */
-  private async freshToken(org: Organization, integration: any) {
+  async freshToken(org: Organization, integration: any) {
     if (!dayjs(integration?.tokenExpiration).isBefore(dayjs())) {
       return integration.token;
     }
@@ -603,7 +603,7 @@ export class IntegrationService {
 
   /** Czytelny opis bledu. Providery rzucaja rozne ksztalty: Error, obiekt
    *  Graph API, czasem goly string - bez tego w UI ladowalo "[object Object]". */
-  private describeError(err: any): string {
+  describeError(err: any): string {
     if (!err) return 'Unknown error';
     if (typeof err === 'string') {
       // SocialAbstract wraps the platform response in {identifier, json},

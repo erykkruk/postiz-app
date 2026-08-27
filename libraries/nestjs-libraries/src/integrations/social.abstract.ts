@@ -73,6 +73,24 @@ export abstract class SocialAbstract {
     return value;
   }
 
+  /**
+   * A read that is allowed to come back empty.
+   *
+   * Statistics are stitched together from several endpoints and platforms drop
+   * or rename metrics without warning, so one refused insight must not sink the
+   * whole post. Returns null instead of throwing; callers treat that as
+   * "this platform did not tell us" and leave the field unset.
+   */
+  async softJson(url: string, identifier = ''): Promise<any | null> {
+    try {
+      const response = await this.fetch(url, {}, identifier);
+      const json = await response.json();
+      return json?.error ? null : json;
+    } catch (err) {
+      return null;
+    }
+  }
+
   async fetch(
     url: string,
     options: RequestInit = {},

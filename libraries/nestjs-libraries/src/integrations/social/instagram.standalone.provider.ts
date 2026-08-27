@@ -173,4 +173,19 @@ export class InstagramStandaloneProvider
       'graph.instagram.com'
     );
   }
+
+  async postStats(
+    id: string,
+    postId: string,
+    accessToken: string,
+    integration?: Integration
+  ) {
+    return instagramProvider.postStats(
+      id,
+      postId,
+      accessToken,
+      integration,
+      'graph.instagram.com'
+    );
+  }
 }

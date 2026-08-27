@@ -4,6 +4,7 @@ import {
   CommentsQuery,
   PostDetails,
   PostResponse,
+  PostStatMetrics,
   SocialComment,
   SocialCommentReply,
   SocialConversation,
@@ -645,24 +646,37 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     const until = dayjs().endOf('day').unix();
     const since = dayjs().subtract(date, 'day').unix();
 
+    // page_impressions_unique and page_posts_impressions_unique used to be here
+    // and are gone - Meta retired them, and not just in the newest version:
+    // asking for them on v20 returns "The value must be a valid insights metric"
+    // too, so those two charts have been silently empty. There is no page-level
+    // replacement for reach; the Posts view sums it from the posts instead.
+    const metrics = [
+      'page_post_engagements',
+      'page_daily_follows',
+      'page_video_views',
+      'page_follows',
+      'page_views_total',
+    ].join(',');
+
     const { data } = await (
       await fetch(
-        `https://graph.facebook.com/v20.0/${id}/insights?metric=page_impressions_unique,page_posts_impressions_unique,page_post_engagements,page_daily_follows,page_video_views&access_token=${accessToken}&period=day&since=${since}&until=${until}`
+        `https://graph.facebook.com/v23.0/${id}/insights?metric=${metrics}&access_token=${accessToken}&period=day&since=${since}&until=${until}`
       )
     ).json();
 
     return (
       data?.map((d: any) => ({
         label:
-          d.name === 'page_impressions_unique'
-            ? 'Page Impressions'
-            : d.name === 'page_post_engagements'
+          d.name === 'page_post_engagements'
             ? 'Posts Engagement'
             : d.name === 'page_daily_follows'
-            ? 'Page followers'
+            ? 'New followers'
             : d.name === 'page_video_views'
             ? 'Videos views'
-            : 'Posts Impressions',
+            : d.name === 'page_follows'
+            ? 'Page followers'
+            : 'Page views',
         percentageChange: 5,
         data: d?.values?.map((v: any) => ({
           total: v.value,
@@ -670,5 +684,114 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
         })),
       })) || []
     );
+  }
+
+  /**
+   * How one publication performed.
+   *
+   * Facebook splits this in two and the split is invisible from the outside:
+   * a reel is stored under its bare video id and answers /video_insights with
+   * plays, reach and a retention curve, while a normal page post is stored as
+   * pageId_postId and no longer has an insights edge at all (Meta retired the
+   * post_impressions family - asking for it returns "Invalid query"). For a
+   * plain post we can therefore only read the public counters.
+   */
+  async postStats(
+    id: string,
+    postId: string,
+    accessToken: string
+  ): Promise<PostStatMetrics> {
+    const isReel = !postId.includes('_');
+
+    const fields = isReel
+      ? 'permalink_url,views,length,likes.summary(true),comments.summary(true)'
+      : 'permalink_url,likes.summary(true),comments.summary(true),' +
+        'reactions.summary(true)';
+
+    const post = await this.softJson(
+      `https://graph.facebook.com/v23.0/${postId}` +
+        `?fields=${fields}&access_token=${accessToken}`,
+      'read post stats'
+    );
+
+    const metrics: PostStatMetrics = {
+      permalink: this.absoluteUrl(post?.permalink_url),
+      // Reactions cover more than a thumbs up, so they are the better "likes"
+      // when Facebook reports both.
+      likes:
+        post?.reactions?.summary?.total_count ??
+        post?.likes?.summary?.total_count,
+      comments: post?.comments?.summary?.total_count,
+      views: typeof post?.views === 'number' ? post.views : undefined,
+    };
+
+    if (!isReel) {
+      return metrics;
+    }
+
+    // No metric list on purpose: Facebook then returns everything it has for
+    // this reel, which survives Meta renaming individual metrics.
+    const insights = await this.softJson(
+      `https://graph.facebook.com/v23.0/${postId}/video_insights` +
+        `?access_token=${accessToken}`,
+      'read reel insights'
+    );
+
+    const extra: Record<string, number> = {};
+
+    for (const row of insights?.data || []) {
+      const value = row?.values?.[0]?.value;
+
+      switch (row.name) {
+        case 'fb_reels_total_plays':
+          metrics.views = value ?? metrics.views;
+          break;
+        case 'post_impressions_unique':
+          metrics.reach = value;
+          break;
+        case 'fb_reels_replay_count':
+          metrics.replays = value;
+          break;
+        case 'post_video_avg_time_watched':
+          metrics.avgWatchMs = value;
+          break;
+        case 'post_video_view_time':
+          metrics.totalWatchMs = value;
+          break;
+        case 'post_video_followers':
+          metrics.followersGained = value;
+          break;
+        case 'post_video_retention_graph':
+          metrics.retention = Object.entries(value || {})
+            .map(([second, ratio]) => ({
+              second: Number(second),
+              ratio: Number(ratio),
+            }))
+            .sort((a, b) => a.second - b.second);
+          break;
+        default:
+          // Everything else is kept as a number when it is one. Breakdowns
+          // (reactions by type, social actions) arrive as objects and would
+          // only add noise to a table of totals.
+          if (typeof value === 'number') {
+            extra[row.name] = value;
+          }
+      }
+    }
+
+    if (Object.keys(extra).length) {
+      metrics.extra = extra;
+    }
+
+    return metrics;
+  }
+
+  // Reels answer with a path like /reel/123/ instead of a full address.
+  private absoluteUrl(url?: string) {
+    if (!url) {
+      return undefined;
+    }
+
+    return url.startsWith('http') ? url : `https://www.facebook.com${url}`;
   }
 }

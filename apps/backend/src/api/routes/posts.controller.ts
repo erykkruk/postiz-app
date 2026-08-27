@@ -23,6 +23,7 @@ import { AgentGraphService } from '@gitroom/nestjs-libraries/agent/agent.graph.s
 import { Response } from 'express';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
 import { ShortLinkService } from '@gitroom/nestjs-libraries/short-linking/short.link.service';
+import { PostStatsService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-stats.service';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 
@@ -34,7 +35,8 @@ export class PostsController {
     private _starsService: StarsService,
     private _messagesService: MessagesService,
     private _agentGraphService: AgentGraphService,
-    private _shortLinkService: ShortLinkService
+    private _shortLinkService: ShortLinkService,
+    private _postStatsService: PostStatsService
   ) {}
 
   @Get('/:id/statistics')
@@ -42,7 +44,36 @@ export class PostsController {
     @GetOrgFromRequest() org: Organization,
     @Param('id') id: string
   ) {
-    return this._postsService.getStatistics(org.id, id);
+    const [clicks, platform] = await Promise.all([
+      this._postsService.getStatistics(org.id, id),
+      this._postStatsService.forPosts(org, [id]),
+    ]);
+
+    return { ...clicks, platform: platform[0] || null };
+  }
+
+  /**
+   * Every published post in a range with its platform numbers and the totals.
+   * Reads our own table, so the range can be wide without waiting on anyone.
+   */
+  @Get('/stats/report')
+  async statsReport(
+    @GetOrgFromRequest() org: Organization,
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('integrations') integrations: string
+  ) {
+    const end = to ? new Date(to) : new Date();
+    const start = from
+      ? new Date(from)
+      : new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    return this._postStatsService.report(
+      org,
+      start,
+      end,
+      integrations ? integrations.split(',').filter(Boolean) : undefined
+    );
   }
 
   @Post('/should-shortlink')

@@ -4,6 +4,7 @@ import {
   CommentsQuery,
   PostDetails,
   PostResponse,
+  PostStatMetrics,
   SocialComment,
   SocialCommentReply,
   SocialConversation,
@@ -889,6 +890,84 @@ export class InstagramProvider
     ).json();
 
     return { id: data.message_id || data.id };
+  }
+
+  /**
+   * How one publication performed.
+   *
+   * Instagram keeps post numbers on the media object itself, so unlike Facebook
+   * there is no reel/post split here. The metric list does depend on the media
+   * type though (a photo has no plays), and Instagram answers an unsupported
+   * metric with an error for the whole call rather than skipping it - hence the
+   * narrower second attempt before giving up on insights entirely.
+   */
+  async postStats(
+    id: string,
+    postId: string,
+    accessToken: string,
+    integration?: Integration,
+    type = 'graph.facebook.com'
+  ): Promise<PostStatMetrics> {
+    const media = await this.softJson(
+      `https://${type}/v21.0/${postId}` +
+        `?fields=media_type,permalink,like_count,comments_count` +
+        `&access_token=${accessToken}`,
+      'read media stats'
+    );
+
+    const metrics: PostStatMetrics = {
+      permalink: media?.permalink,
+      likes: media?.like_count,
+      comments: media?.comments_count,
+    };
+
+    const full = 'reach,likes,comments,saved,shares,views,total_interactions';
+    const withoutViews = 'reach,likes,comments,saved,shares,total_interactions';
+
+    const insights =
+      (await this.softJson(
+        `https://${type}/v21.0/${postId}/insights?metric=${full}` +
+          `&access_token=${accessToken}`,
+        'read media insights'
+      )) ||
+      (await this.softJson(
+        `https://${type}/v21.0/${postId}/insights?metric=${withoutViews}` +
+          `&access_token=${accessToken}`,
+        'read media insights'
+      ));
+
+    for (const row of insights?.data || []) {
+      const value = row?.values?.[0]?.value;
+      if (typeof value !== 'number') {
+        continue;
+      }
+
+      switch (row.name) {
+        case 'reach':
+          metrics.reach = value;
+          break;
+        case 'views':
+          metrics.views = value;
+          break;
+        case 'likes':
+          metrics.likes = value;
+          break;
+        case 'comments':
+          metrics.comments = value;
+          break;
+        case 'saved':
+          metrics.saves = value;
+          break;
+        case 'shares':
+          metrics.shares = value;
+          break;
+        case 'total_interactions':
+          metrics.interactions = value;
+          break;
+      }
+    }
+
+    return metrics;
   }
 
   async analytics(
