@@ -179,10 +179,20 @@ export class PostStatsService {
           integration.name
         );
 
+        const cleaned = this.clean(metrics);
+
         await this._postStatsRepository.saveMetrics(
           row.integrationId,
           row.releaseId,
-          this.clean(metrics)
+          cleaned
+        );
+
+        // Today's reading, kept as its own row so the growth curve has a past.
+        await this._postStatsRepository.saveDay(
+          row.organizationId,
+          row.integrationId,
+          row.releaseId,
+          cleaned
         );
         fetched++;
       } catch (err) {
