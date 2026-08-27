@@ -726,6 +726,30 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     };
 
     if (!isReel) {
+      // A page post still has an insights edge, it just has almost nothing left
+      // in it: everything about reach is retired, and asking for a dead metric
+      // fails the whole call, so only these two are requested.
+      const postInsights = await this.softJson(
+        `https://graph.facebook.com/v23.0/${postId}/insights` +
+          `?metric=post_clicks,post_video_views&access_token=${accessToken}`,
+        'read post insights'
+      );
+
+      for (const row of postInsights?.data || []) {
+        const value = row?.values?.[0]?.value;
+        if (typeof value !== 'number') {
+          continue;
+        }
+
+        if (row.name === 'post_video_views' && value > 0) {
+          metrics.views = value;
+        }
+
+        if (row.name === 'post_clicks') {
+          metrics.extra = { ...(metrics.extra || {}), clicks: value };
+        }
+      }
+
       return metrics;
     }
 
