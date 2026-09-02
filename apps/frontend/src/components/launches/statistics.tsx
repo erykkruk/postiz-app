@@ -55,6 +55,11 @@ export const StatisticsModal: FC<{
     loadStatistics
   );
 
+  const loadComments = useCallback(async () => {
+    return (await fetch(`/posts/${postId}/comments`)).json();
+  }, [postId, fetch]);
+  const { data: comments } = useSWR(`/posts/${postId}/comments`, loadComments);
+
   const { data: analyticsData, isLoading: isLoadingAnalytics, mutate: mutateAnalytics } = useSWR(
     `/analytics/post/${postId}?date=${dateRange}`,
     loadPostAnalytics,
@@ -180,6 +185,23 @@ export const StatisticsModal: FC<{
             </div>
           )}
 
+          {/* Comments Section */}
+          {!!comments?.items?.length && (
+            <div className="flex flex-col gap-[10px]">
+              <div className="flex items-baseline gap-[10px]">
+                <h3 className="text-[18px] font-[500]">{t('comments', 'Comments')}</h3>
+                <div className="text-[13px] text-[#8B8B8B]">
+                  {comments.total}
+                </div>
+              </div>
+              <div className="flex flex-col gap-[8px]">
+                {comments.items.map((comment: CommentNode) => (
+                  <CommentThread key={comment.id} comment={comment} />
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Post Analytics Section */}
           {analyticsData && Array.isArray(analyticsData) && analyticsData.length > 0 && (
             <div className="flex flex-col gap-[14px]">
@@ -283,7 +305,8 @@ export const StatisticsModal: FC<{
           {/* No analytics available message */}
           {(!analyticsData || !Array.isArray(analyticsData) || analyticsData.length === 0) &&
             (!statisticsData?.clicks || statisticsData.clicks.length === 0) &&
-            !platform && (
+            !platform &&
+            !comments?.items?.length && (
               <div className="text-center text-gray-400 py-[20px]">
                 {t('no_statistics_available', 'No statistics available for this post')}
               </div>
@@ -293,6 +316,65 @@ export const StatisticsModal: FC<{
     </div>
   );
 };
+
+type CommentNode = {
+  id: string;
+  authorName?: string;
+  message: string;
+  permalink?: string;
+  createdAt: string;
+  isOwn?: boolean;
+  replies?: CommentNode[];
+};
+
+/**
+ * One comment with whatever hangs under it.
+ *
+ * Replies are drawn by the same component one level in, so a conversation that
+ * goes deeper than one answer still reads as a conversation. Our own replies
+ * are tinted, which is what makes an unanswered comment obvious at a glance.
+ */
+const CommentThread: FC<{ comment: CommentNode; depth?: number }> = ({
+  comment,
+  depth = 0,
+}) => (
+  <div className={depth ? 'ps-[14px] border-s-2 border-[#2a3040]' : ''}>
+    <div
+      className={`rounded-[8px] p-[10px] ${
+        comment.isOwn
+          ? 'bg-customColor21/25 border border-customColor21/40'
+          : 'bg-newTableHeader'
+      }`}
+    >
+      <div className="text-[11px] text-[#8B8B8B] mb-[3px] flex gap-[6px]">
+        <span>{comment.isOwn ? 'You' : comment.authorName || 'unknown'}</span>
+        <span>&middot;</span>
+        <span>{dayjs(comment.createdAt).format('DD.MM.YYYY HH:mm')}</span>
+        {!!comment.permalink && (
+          <a
+            className="ms-auto hover:text-white"
+            href={comment.permalink}
+            target="_blank"
+            rel="noreferrer"
+          >
+            open
+          </a>
+        )}
+      </div>
+      <div className="text-[13px] whitespace-pre-wrap break-words">
+        {comment.message}
+      </div>
+    </div>
+
+    {!!comment.replies?.length && (
+      <div className="flex flex-col gap-[8px] mt-[8px]">
+        {comment.replies.map((reply) => (
+          <CommentThread key={reply.id} comment={reply} depth={depth + 1} />
+        ))}
+      </div>
+    )}
+  </div>
+);
 
 const formatRatio = (ratio: number | null) =>
   ratio === null ? '-' : `${Math.round(ratio * 100)}%`;
