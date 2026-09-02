@@ -12,6 +12,7 @@ import { IntegrationRepository } from '@gitroom/nestjs-libraries/database/prisma
 import { InboxRepository } from '@gitroom/nestjs-libraries/database/prisma/integrations/inbox.repository';
 import { PostStatsRepository } from '@gitroom/nestjs-libraries/database/prisma/integrations/post-stats.repository';
 import { PostStatsService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-stats.service';
+import { MetaAdsService } from '@gitroom/nestjs-libraries/database/prisma/posts/meta-ads.service';
 import { PostsService } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.service';
 import { PostsRepository } from '@gitroom/nestjs-libraries/database/prisma/posts/posts.repository';
 import { IntegrationManager } from '@gitroom/nestjs-libraries/integrations/integration.manager';
@@ -77,6 +78,7 @@ import { AdminStatsService } from '@gitroom/nestjs-libraries/database/prisma/adm
     InboxRepository,
     PostStatsRepository,
     PostStatsService,
+    MetaAdsService,
     PostsService,
     PostsRepository,
     StripeService,

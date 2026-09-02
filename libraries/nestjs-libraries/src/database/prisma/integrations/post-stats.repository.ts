@@ -123,6 +123,39 @@ export class PostStatsRepository {
     });
   }
 
+  /**
+   * A publication that is not ours to begin with - today an ad creative.
+   *
+   * Kept in the same table as our own posts so one query feeds the table and
+   * the totals. `source` is what tells them apart, and `label` stands in for
+   * the post text an ad never had.
+   */
+  registerExternal(
+    org: string,
+    integrationId: string,
+    releaseId: string,
+    publishedAt: Date,
+    label: string,
+    source = 'paid'
+  ) {
+    return this._stats.model.postStat.upsert({
+      where: { integrationId_releaseId: { integrationId, releaseId } },
+      create: {
+        organizationId: org,
+        integrationId,
+        releaseId,
+        publishedAt,
+        label,
+        source,
+        metrics: {},
+      },
+      // A creative can be renamed, and the same post can be promoted after we
+      // published it organically - in that case it keeps its own row and only
+      // gains the ad name.
+      update: { label },
+    });
+  }
+
   /** Which publications are already registered, as "integrationId:releaseId". */
   async knownReleaseIds(integrationIds: string[]) {
     const rows = await this._stats.model.postStat.findMany({

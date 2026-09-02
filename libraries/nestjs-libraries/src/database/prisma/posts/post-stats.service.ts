@@ -275,8 +275,14 @@ export class PostStatsService {
               provider: integration.providerIdentifier,
             }
           : undefined,
-        // The editor stores HTML; the table only needs something to read.
-        preview: this.plainText(post?.content).slice(0, 140),
+        // Our own posts read from the editor content (stored as HTML); an ad
+        // has no such row, so its creative name stands in for the text.
+        preview: (
+          this.plainText(post?.content) || row.label || ''
+        ).slice(0, 140),
+        // "paid" rows come from the ad account, not from our calendar.
+        source: row.source || 'organic',
+        label: row.label || undefined,
         url: metrics.permalink || post?.releaseURL,
         metrics,
       };
