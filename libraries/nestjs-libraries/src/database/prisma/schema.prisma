@@ -330,6 +330,9 @@ model Integration {
   orderItems            OrderItems[]
   plugs                 Plugs[]
   posts                 Post[]
+  inboxItems            InboxItem[]
+  postStats             PostStat[]
+  postStatDays          PostStatDay[]
 
   @@unique([organizationId, internalId])
   @@index([rootInternalId])
@@ -342,9 +345,6 @@ model Integration {
   @@index([inBetweenSteps])
   @@index([refreshNeeded])
   @@index([disabled])
-  inboxItems           InboxItem[]
-  postStats            PostStat[]
-  postStatDays         PostStatDay[]
 }
 
 model Signatures {
@@ -887,50 +887,55 @@ enum APPROVED_SUBMIT_FOR_ORDER {
 // otwieral sie natychmiast zamiast czekac na Graph API. Odswieza je cron,
 // a widok czyta wylacznie stad.
 model InboxItem {
-  id             String   @id @default(uuid())
+  id             String      @id @default(uuid())
   organizationId String
   integrationId  String
   integration    Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
   // Identyfikator po stronie platformy - po nim rozpoznajemy, czy element
   // juz mamy, wiec ponowne pobranie nie tworzy duplikatow.
-  externalId     String
-  kind           String   // "comment" albo "conversation"
+  externalId String
+  kind       String // "comment" albo "conversation"
 
-  authorName     String?
-  authorId       String?
-  content        String   @db.Text
-  permalink      String?
-  parentId       String?
-  postText       String?  @db.Text
-  postUrl        String?
+  authorName String?
+  authorId   String?
+  content    String  @db.Text
+  permalink  String?
+  parentId   String?
+  // Publikacja, pod ktora wisi komentarz - identyfikator po stronie platformy,
+  // czyli to samo co Post.releaseId. Dzieki temu statystyki posta moga pokazac
+  // jego wlasne komentarze bez pytania platformy.
+  postId     String?
+  postText   String? @db.Text
+  postUrl    String?
 
   // Cala rozmowa albo dodatkowe dane elementu, zeby nie mnozyc kolumn.
-  payload        Json?
+  payload Json?
 
-  happenedAt     DateTime
-  isRead         Boolean  @default(false)
-  isOwn          Boolean  @default(false)
+  happenedAt DateTime
+  isRead     Boolean  @default(false)
+  isOwn      Boolean  @default(false)
 
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([integrationId, externalId, kind])
   @@index([organizationId, kind, happenedAt])
+  @@index([integrationId, postId])
   @@index([integrationId, kind])
 }
 
 // Kiedy ostatnio udalo sie pobrac dane danego kanalu i czy byl blad.
 // Dzieki temu panel pokazuje wiek danych bez odpytywania platformy.
 model InboxSync {
-  id             String   @id @default(uuid())
+  id             String    @id @default(uuid())
   organizationId String
   integrationId  String
   kind           String
   lastSyncAt     DateTime?
   lastError      String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @default(now()) @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
 
   @@unique([integrationId, kind])
   @@index([organizationId])
@@ -948,25 +953,25 @@ model PostStat {
 
   // Nasz Post.id - bez relacji, zeby usuniecie wpisu z kalendarza nie kasowalo
   // historii wynikow. Puste dla publikacji, ktorych juz u siebie nie mamy.
-  postId         String?
+  postId String?
 
   // Identyfikator publikacji po stronie platformy (Post.releaseId).
-  releaseId      String
+  releaseId String
 
   // Znormalizowane metryki (PostStatMetrics). Json, bo kazda platforma podaje
   // inny podzbior, a kolumna na kazda liczbe znaczylaby migracje przy kazdej
   // zmianie po ich stronie.
-  metrics        Json
+  metrics Json
 
   // Kiedy post zostal opublikowany - kopia z Post, zeby cron wybieral posty do
   // odswiezenia bez joina.
-  publishedAt    DateTime?
+  publishedAt DateTime?
 
-  fetchedAt      DateTime?
-  lastError      String?
+  fetchedAt DateTime?
+  lastError String?
 
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([integrationId, releaseId])
   @@index([organizationId, publishedAt])
@@ -984,14 +989,13 @@ model PostStatDay {
   integrationId  String
   integration    Integration @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
-  releaseId      String
-  day            DateTime    @db.Date
-  metrics        Json
+  releaseId String
+  day       DateTime @db.Date
+  metrics   Json
 
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @default(now()) @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 
   @@unique([integrationId, releaseId, day])
   @@index([organizationId, day])
 }
-

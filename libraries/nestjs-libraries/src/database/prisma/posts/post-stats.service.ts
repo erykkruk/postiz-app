@@ -218,6 +218,7 @@ export class PostStatsService {
     return rows.map((row: any) => ({
       postId: row.postId,
       integrationId: row.integrationId,
+      releaseId: row.releaseId,
       metrics: (row.metrics || {}) as PostStatMetrics,
       fetchedAt: row.fetchedAt,
       error: row.lastError,

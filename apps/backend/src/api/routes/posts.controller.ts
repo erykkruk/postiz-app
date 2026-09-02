@@ -24,6 +24,7 @@ import { Response } from 'express';
 import { GetUserFromRequest } from '@gitroom/nestjs-libraries/user/user.from.request';
 import { ShortLinkService } from '@gitroom/nestjs-libraries/short-linking/short.link.service';
 import { PostStatsService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-stats.service';
+import { IntegrationService } from '@gitroom/nestjs-libraries/database/prisma/integrations/integration.service';
 import { CreateTagDto } from '@gitroom/nestjs-libraries/dtos/posts/create.tag.dto';
 import { AuthorizationActions, Sections } from '@gitroom/backend/services/auth/permissions/permission.exception.class';
 
@@ -36,7 +37,8 @@ export class PostsController {
     private _messagesService: MessagesService,
     private _agentGraphService: AgentGraphService,
     private _shortLinkService: ShortLinkService,
-    private _postStatsService: PostStatsService
+    private _postStatsService: PostStatsService,
+    private _integrationService: IntegrationService
   ) {}
 
   @Get('/:id/statistics')
@@ -50,6 +52,31 @@ export class PostsController {
     ]);
 
     return { ...clicks, platform: platform[0] || null };
+  }
+
+  /**
+   * The comments under one published post, threaded.
+   *
+   * Read from our own inbox copy, so opening the statistics of a post never
+   * waits on a platform. An empty list means the inbox has not synced this
+   * publication yet, not that nobody commented.
+   */
+  @Get('/:id/comments')
+  async postComments(
+    @GetOrgFromRequest() org: Organization,
+    @Param('id') id: string
+  ) {
+    const [platform] = await this._postStatsService.forPosts(org, [id]);
+
+    if (!platform?.integrationId || !platform?.releaseId) {
+      return { total: 0, items: [] };
+    }
+
+    return this._integrationService.getPostComments(
+      org,
+      platform.integrationId,
+      platform.releaseId
+    );
   }
 
   /**
