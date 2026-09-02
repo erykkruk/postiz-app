@@ -158,7 +158,23 @@ export const PostsChart: FC<{
       });
     };
 
-    const order = channelOrder.filter((id) => perChannel.has(id));
+    // Which channels earn a line of their own is decided by how much they
+    // actually contributed to the metric on screen, not by where they sit in
+    // the sidebar. Ordering by the sidebar put eight Facebook pages in front and
+    // swept Instagram and YouTube - where most of the numbers are - into
+    // "Other", which is the opposite of what the chart is for. Ties fall back to
+    // the sidebar order so the picture stays steady between reloads.
+    const positionOf = new Map(channelOrder.map((id, index) => [id, index]));
+    const totalOf = (id: string) =>
+      [...perChannel.get(id)!.values()].reduce((a, b) => a + b, 0);
+
+    const order = [...perChannel.keys()].sort((a, b) => {
+      const difference = totalOf(b) - totalOf(a);
+      return difference !== 0
+        ? difference
+        : (positionOf.get(a) ?? 0) - (positionOf.get(b) ?? 0);
+    });
+
     const named = order.slice(0, MAX_SERIES);
     const rest = order.slice(MAX_SERIES);
 
@@ -182,7 +198,11 @@ export const PostsChart: FC<{
       }
 
       datasets.push({
-        label: `Other (${rest.length})`,
+        // Says who is in there: a nameless grey line that outruns every named
+        // channel is the kind of thing nobody can act on.
+        label: `Other (${rest
+          .map((id) => names.get(id) || id)
+          .join(', ')})`,
         data: series(merged),
         borderColor: isDark ? OTHER_DARK : OTHER_LIGHT,
         backgroundColor: isDark ? OTHER_DARK : OTHER_LIGHT,
