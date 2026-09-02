@@ -91,7 +91,14 @@ export class PostStatsRepository {
           },
         ],
       },
-      orderBy: { publishedAt: 'desc' },
+      // A publication we have never read comes first, then whichever was read
+      // longest ago. Ordering by publication date alone starved everything that
+      // was not brand new: the newest sixty filled the batch every hour, so the
+      // rows behind them - the older ads especially - were never reached at all.
+      orderBy: [
+        { fetchedAt: { sort: 'asc', nulls: 'first' } },
+        { publishedAt: 'desc' },
+      ],
       take: limit,
     });
   }
