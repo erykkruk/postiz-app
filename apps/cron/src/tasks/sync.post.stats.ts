@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PostStatsService } from '@gitroom/nestjs-libraries/database/prisma/posts/post-stats.service';
+import { MetaAdsService } from '@gitroom/nestjs-libraries/database/prisma/posts/meta-ads.service';
 
 /**
  * Keeps the per-post numbers fresh.
@@ -12,11 +13,17 @@ import { PostStatsService } from '@gitroom/nestjs-libraries/database/prisma/post
  */
 @Injectable()
 export class SyncPostStats {
-  constructor(private _postStatsService: PostStatsService) {}
+  constructor(
+    private _postStatsService: PostStatsService,
+    private _metaAdsService: MetaAdsService
+  ) {}
 
   @Cron('30 * * * *')
   async handleCron() {
     await this._postStatsService.registerPublished();
+    // Promoted creatives never pass through our calendar, so they are looked up
+    // in the ad account first and then read like any other post.
+    await this._metaAdsService.registerAds();
     await this._postStatsService.syncDue();
   }
 }

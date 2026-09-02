@@ -958,6 +958,12 @@ model PostStat {
   // Identyfikator publikacji po stronie platformy (Post.releaseId).
   releaseId String
 
+  // Skad wzielismy ta publikacje: "organic" = nasz wpis z kalendarza,
+  // "paid" = kreacja reklamowa znaleziona w koncie reklamowym. Reklama nie ma
+  // naszego wiersza w kalendarzu, wiec niesie wlasna nazwe w `label`.
+  source         String      @default("organic")
+  label          String?
+
   // Znormalizowane metryki (PostStatMetrics). Json, bo kazda platforma podaje
   // inny podzbior, a kolumna na kazda liczbe znaczylaby migracje przy kazdej
   // zmianie po ich stronie.

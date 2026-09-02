@@ -24,6 +24,10 @@ type Item = {
   channel?: { id: string; name: string; provider: string };
   preview: string;
   url?: string;
+  // "paid" rows are ad creatives found in the ad account: they never passed
+  // through the calendar, so they carry the creative name instead of post text.
+  source?: string;
+  label?: string;
   metrics: Record<string, any>;
 };
 
@@ -39,6 +43,14 @@ const COLUMNS = [
   { key: 'followersGained', label: 'Followers' },
 ] as const;
 
+// Organic and promoted posts live in one table, because the question is nearly
+// always "what worked", not "which of the two lists it came from".
+const SOURCES = [
+  { key: 'all', label: 'All posts' },
+  { key: 'organic', label: 'Organic' },
+  { key: 'paid', label: 'Ads' },
+] as const;
+
 const RANGES = [
   { key: '7', label: 'Last 7 days' },
   { key: '30', label: 'Last 30 days' },
@@ -46,6 +58,55 @@ const RANGES = [
   { key: '180', label: 'Last 180 days' },
   { key: 'custom', label: 'Custom' },
 ] as const;
+
+/**
+ * Adds up the metrics of the posts on screen.
+ *
+ * A field a platform never reported is skipped rather than counted as zero, and
+ * each total says how many posts it covers - otherwise a column only Instagram
+ * fills would read as if the whole account underperformed. Watch time is an
+ * average, so it is averaged rather than summed.
+ */
+const sumMetrics = (all: Array<Record<string, any>>) => {
+  const totals: Totals = {};
+
+  for (const field of [
+    'views',
+    'reach',
+    'likes',
+    'comments',
+    'shares',
+    'saves',
+    'interactions',
+    'followersGained',
+    'replays',
+    'totalWatchMs',
+  ]) {
+    const values = all
+      .map((metrics) => metrics?.[field])
+      .filter((value): value is number => typeof value === 'number');
+
+    if (values.length) {
+      totals[field] = {
+        value: values.reduce((a, b) => a + b, 0),
+        posts: values.length,
+      };
+    }
+  }
+
+  const watched = all
+    .map((metrics) => metrics?.avgWatchMs)
+    .filter((value): value is number => typeof value === 'number');
+
+  if (watched.length) {
+    totals.avgWatchMs = {
+      value: Math.round(watched.reduce((a, b) => a + b, 0) / watched.length),
+      posts: watched.length,
+    };
+  }
+
+  return totals;
+};
 
 const number = (value?: number) =>
   typeof value === 'number' ? Math.round(value).toLocaleString('pl-PL') : '-';
@@ -62,6 +123,7 @@ export const PostsAnalytics: FC<{
   );
   const [customTo, setCustomTo] = useState(dayjs().format('YYYY-MM-DD'));
   const [metric, setMetric] = useState<string>('views');
+  const [source, setSource] = useState<string>('all');
   const [cumulative, setCumulative] = useState(true);
   const [sort, setSort] = useState<{ key: string; desc: boolean }>({
     key: 'publishedAt',
@@ -103,7 +165,21 @@ export const PostsAnalytics: FC<{
   );
 
   const items: Item[] = data?.items || [];
-  const totals: Totals = data?.totals || {};
+
+  const visible = useMemo(
+    () =>
+      source === 'all'
+        ? items
+        : items.filter((item) => (item.source || 'organic') === source),
+    [items, source]
+  );
+
+  // Totals are summed here rather than taken from the response, so the tiles
+  // always describe the same set of posts the table and the chart show.
+  const totals: Totals = useMemo(
+    () => sumMetrics(visible.map((item) => item.metrics)),
+    [visible]
+  );
 
   const rows = useMemo(() => {
     const value = (item: Item) =>
@@ -115,10 +191,10 @@ export const PostsAnalytics: FC<{
         ? item.metrics[sort.key]
         : -1;
 
-    return [...items].sort((a, b) =>
+    return [...visible].sort((a, b) =>
       sort.desc ? value(b) - value(a) : value(a) - value(b)
     );
-  }, [items, sort]);
+  }, [visible, sort]);
 
   const toggle = (key: string) =>
     setSort((prev) =>
@@ -172,6 +248,21 @@ export const PostsAnalytics: FC<{
           </div>
         )}
 
+        <span className="w-[1px] h-[20px] bg-fifth mx-[4px]" />
+
+        {SOURCES.map((option) => (
+          <button
+            key={option.key}
+            onClick={() => setSource(option.key)}
+            className={clsx(
+              'text-[13px] px-[12px] py-[6px] rounded-[8px]',
+              source === option.key ? 'bg-customColor21' : 'bg-newTableHeader'
+            )}
+          >
+            {option.label}
+          </button>
+        ))}
+
         <span className="text-[12px] text-[#8B8B8B] ms-auto">
           {dayjs(from).format('DD.MM.YYYY')} - {dayjs(to).format('DD.MM.YYYY')}
         </span>
@@ -179,9 +270,11 @@ export const PostsAnalytics: FC<{
 
       {isLoading || !data ? (
         <LoadingComponent />
-      ) : !items.length ? (
+      ) : !visible.length ? (
         <div className="flex-1 flex items-center justify-center text-[#8B8B8B] py-[40px]">
-          No published posts with statistics in this range yet.
+          {items.length
+            ? 'Nothing of this kind in this range.'
+            : 'No published posts with statistics in this range yet.'}
         </div>
       ) : (
         <>
@@ -213,7 +306,7 @@ export const PostsAnalytics: FC<{
             </div>
 
             <PostsChart
-              items={items}
+              items={visible}
               channelOrder={ids}
               from={from}
               to={to}
@@ -255,7 +348,7 @@ export const PostsAnalytics: FC<{
                   {/* Says how much of the selection this total actually covers -
                       a platform that reports nothing must not read as a zero. */}
                   <div className="text-[11px] text-[#8B8B8B]">
-                    from {total.posts} of {items.length} posts
+                    from {total.posts} of {visible.length} posts
                   </div>
                 </div>
               );
@@ -267,7 +360,7 @@ export const PostsAnalytics: FC<{
                   {formatWatchTime(totals.avgWatchMs.value)}
                 </div>
                 <div className="text-[11px] text-[#8B8B8B]">
-                  from {totals.avgWatchMs.posts} of {items.length} posts
+                  from {totals.avgWatchMs.posts} of {visible.length} posts
                 </div>
               </div>
             )}
@@ -323,6 +416,11 @@ export const PostsAnalytics: FC<{
                         {item.channel?.name || '-'}
                       </td>
                       <td className="py-[8px] ps-[14px] max-w-[320px]">
+                        {item.source === 'paid' && (
+                          <span className="text-[10px] uppercase tracking-wide bg-customColor21/30 border border-customColor21/40 rounded-[4px] px-[5px] py-[1px] me-[6px]">
+                            Ad
+                          </span>
+                        )}
                         {item.url ? (
                           <a
                             href={item.url}
