@@ -1166,7 +1166,7 @@ export class FacebookProvider extends SocialAbstract implements SocialProvider {
     });
   }
 
-  async sendMessage(
+  async sendConversationMessage(
     id: string,
     recipientId: string,
     message: string,

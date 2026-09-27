@@ -1142,14 +1142,14 @@ export class IntegrationService {
     const provider = this._integrationManager.getSocialIntegration(
       integration.providerIdentifier
     );
-    if (!provider?.sendMessage) {
+    if (!provider?.sendConversationMessage) {
       throw new Error('Provider does not support messages');
     }
     const token = await this.freshToken(org, integration);
     if (!token) {
       throw new Error('RELOGIN');
     }
-    return provider.sendMessage(
+    return provider.sendConversationMessage(
       integration.internalId,
       recipientId,
       message,

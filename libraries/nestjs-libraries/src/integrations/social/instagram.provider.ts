@@ -1307,7 +1307,7 @@ export class InstagramProvider
     });
   }
 
-  async sendMessage(
+  async sendConversationMessage(
     id: string,
     recipientId: string,
     message: string,

@@ -153,7 +153,7 @@ export interface ISocialMediaIntegration {
     options?: CommentsQuery
   ): Promise<SocialConversation[]>; // Reads private message threads
 
-  sendMessage?(
+  sendConversationMessage?(
     id: string,
     recipientId: string,
     message: string,
@@ -240,7 +240,7 @@ export type SocialMessage = {
 };
 
 export type SocialConversation = {
-  id: string; // Conversation id, the handle sendMessage takes
+  id: string; // Conversation id, the handle sendConversationMessage takes
   participantId?: string; // Person we are talking to
   participantName?: string;
   updatedAt: string;
