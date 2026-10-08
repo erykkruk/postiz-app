@@ -48,7 +48,7 @@ export class InstagramProvider
     'instagram_manage_insights',
     // Messaging: also needs the capability on the Meta app side (App Review);
     // having the permission in the token is not enough.
-    'instagram_business_manage_messages',
+    'instagram_manage_messages',
   ];
   override maxConcurrentJob = 400;
   editor = 'normal' as const;
